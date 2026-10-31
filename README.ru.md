@@ -72,7 +72,7 @@ bash tools/build-sdk.sh
 
 Результат: `build/GremlinAmp-0.1.8.apk`. Скрипт создаёт локальный тестовый ключ в `build/development.keystore`, если отдельный ключ не задан. Не помещайте ключи в Git.
 
-Чтобы выпускать обновления с одной подписью, задайте путь к своему закрытому ключу через `GREMLINAMP_KEYSTORE` и пароль через `GREMLINAMP_STOREPASS`. Скрипт использует alias `gremlinamp`. См. [выпуск версий](docs/RELEASING.md).
+Чтобы выпускать обновления с одной подписью, задайте путь к своему закрытому ключу через `GREMLINAMP_KEYSTORE` и пароль через `GREMLINAMP_STOREPASS`. Скрипт использует alias `gremlinamp`.
 
 Gradle-проект также включён: AGP 8.7.3, Gradle 8.9. Wrapper в репозиторий не включён; проверенные APK собраны SDK-скриптом.
 
