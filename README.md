@@ -1,49 +1,65 @@
 # GremlinAmp
 
-[GitHub · GremlinEngineering/gremlinamp](https://github.com/GremlinEngineering/gremlinamp)
+**English** · [Русский](README.ru.md)
 
-**Музыка Аркадного зала Школы Империи — Android-плеер игровых саундтреков.**
+**Game soundtracks from the Imperial School Arcade, on Android and offline.**
 
-Кассетный облик, современные управление и поиск. Плеер получает музыку, постеры и состав серий из существующих каталогов [Аркадного зала](https://games.oopssre.ru/gremlin.html), сохраняет коллекции и играет без интернета. Перекодирование файлов не требуется.
+GremlinAmp is an Android companion to the [Imperial School Arcade music library](https://games.oopssre.ru/gremlin.html). Pick a game or series, play its soundtrack, or download a collection to your phone. The app uses the site's existing catalog for artwork, series membership and game information.
 
-## Возможности
+Its cassette Walkman-inspired appearance combines a retro feel with search, filters and background playback.
 
-- Музыкальные коллекции игр и серий с миниатюрами и полными постерами.
-- Поиск, алфавит, платформы и годы выхода игр.
-- Скачивание игры, серии или выбранных коллекций; загрузка всей библиотеки после сброса фильтров.
-- Дедупликация файлов, проверка SHA-256 и продолжение частичной загрузки.
-- Фоновое воспроизведение и управление через уведомление и гарнитуру.
-- Очередь, перемешивание, повтор композиции и очереди, перемотка.
-- Измерение неизвестной длительности игровых композиций и фильтр коротких звуков.
-- Светлая, тёмная и системная темы; увеличение постеров жестами.
+## Why use it?
 
-Текущая версия: **0.1.7**. Android **8.0+**, ARM64 / ARMv7 / x86_64.
+The website already plays music in a browser. GremlinAmp brings that library to your phone with background playback, headset controls and downloaded collections you can listen to without an internet connection.
 
-## Форматы
+For example, find a favourite series, narrow its games down to a platform, download their music and listen on a trip. A duration filter can hide short sound effects.
 
-Игровые форматы воспроизводятся нативным [Game Music Emu](https://github.com/libgme/game-music-emu): NSF, NSFE, GBS, HES, SPC, VGM/VGZ, AY, SAP. Обычные аудиофайлы воспроизводятся средствами Android; на сайте сейчас также есть MP3 и OGG. Поддержка остальных обычных кодеков зависит от Android.
+## What makes it different?
 
-В файле игрового формата может находиться несколько композиций. Плеер использует `subsong` из манифеста, а не считает весь файл одним треком.
+GremlinAmp is organised around **the Arcade's games and series**:
 
-## Данные сайта
+- Each game is a music collection with its own poster; series bring together music from their games.
+- Search, alphabet navigation, platform and year filters use the existing game catalog.
+- NSF, SPC, VGM and other game music formats play without preparing MP3 copies. Individual compositions inside one file are treated as separate tracks.
+- Download a game, a series or the whole library. Shared files are stored only once.
+- Music stays connected to its game through titles, artwork and collection membership.
 
-Приложение читает готовые JSON с `https://games.oopssre.ru/`:
+The app is intended primarily for the site's listeners and game music enthusiasts. Importing arbitrary folders from your phone is not currently supported.
 
-| Данные | Источник |
-|---|---|
-| Музыкальные игры и композиции | `assets/gallery-music.json` |
-| Полный треклист коллекции | `music/sets/*.json` |
-| Оригинальные музыкальные файлы | `music/files/*` |
-| Серии, их состав, годы и сведения об играх | `assets/statistics.json` |
-| Изображения игр и серий | `assets/gallery-games.json`, `assets/gallery-series.json` |
+## Install and start listening
 
-Изменения музыкального API для работы плеера не требуются. Связи строятся по идентификаторам игр, а не по похожести названий. В плеере показываются только серии с доступной музыкой.
+Requires **Android 8.0+**. Supports ARM64, ARMv7 and x86_64. Current version: **0.1.7**. The app interface is currently **Russian**.
 
-## Сборка
+Look for an APK in the [site's media library](https://games.oopssre.ru/gremlin.html) or [GitHub Releases](https://github.com/GremlinEngineering/gremlinamp/releases). If no release has been published yet, build from source using the instructions below.
 
-Проверенный путь — `tools/build-sdk.sh`, без Maven-зависимостей приложения.
+1. Install the APK. Android may ask you to allow installation from your browser or file manager.
+2. Open «Игры» (Games) or «Серии» (Series), find a collection and select a track.
+3. Download music through the collection menu. Open «Скачано» (Downloaded) to listen offline.
 
-Нужны Java 17, Android SDK Platform 35, Build Tools 35.0.0, NDK 27.0.12077973, CMake 3.22.1, `zip` и `keytool`.
+Playback includes a queue, shuffle, repeat, seeking, notification and headset controls. Tap an artwork thumbnail to open the poster with gesture zoom. Light, dark and system themes are available in settings.
+
+Clear the filters before downloading the entire library. Duration controls can hide short tracks and separately show or hide tracks whose duration is unknown.
+
+## Supported formats
+
+[Game Music Emu](https://github.com/libgme/game-music-emu) handles NSF, NSFE, GBS, HES, SPC, VGM/VGZ, AY and SAP. Standard audio uses Android's media playback; the site also contains MP3 and OGG. Other standard codecs depend on the Android device.
+
+Game files may contain multiple compositions. The player uses the manifest's `subsong` field to select the right one. Audio is decoded for playback without saving converted copies.
+
+## Current limitations
+
+- Looping game music has no single natural duration. If accelerated analysis finds no end within 180 seconds, the duration remains unknown.
+- Duration is a practical filter, not a sound-effect classifier: it can also hide short musical jingles.
+- There is no dedicated screen for deleting downloaded collections.
+- After Android force-stops the app, start the download again. Completed and partial files are retained.
+- Current APKs use a development signing key. Updates to an existing installation must retain the same signature.
+- NSF playback was confirmed by the user in earlier builds. A complete device test of version 0.1.7 has not been performed.
+
+## Build from source
+
+The verified build path is `tools/build-sdk.sh`, without Maven dependencies for the app.
+
+Requirements: Java 17, Android SDK Platform 35, Build Tools 35.0.0, NDK 27.0.12077973, CMake 3.22.1, `zip` and `keytool`.
 
 ```bash
 export ANDROID_SDK_ROOT=/path/to/android-sdk
@@ -51,38 +67,44 @@ export GREMLINAMP_STOREPASS=android
 bash tools/build-sdk.sh
 ```
 
-Результат: `build/GremlinAmp-0.1.7.apk`. Скрипт создаёт локальный тестовый ключ в `build/development.keystore`, если отдельный ключ не задан. Не помещайте ключи в Git.
+Output: `build/GremlinAmp-0.1.7.apk`. Unless another key is supplied, the script creates a local development key at `build/development.keystore`. Never commit signing keys.
 
-Чтобы выпускать обновления с одной подписью, задайте путь к своему закрытому ключу через `GREMLINAMP_KEYSTORE` и пароль через `GREMLINAMP_STOREPASS`. Скрипт использует alias `gremlinamp`. См. [выпуск версий](docs/RELEASING.md).
+For repeatable update signing, set `GREMLINAMP_KEYSTORE` to your private keystore and `GREMLINAMP_STOREPASS` to its password. The script uses the alias `gremlinamp`. See the [release instructions](docs/RELEASING.md) (Russian).
 
-Gradle-проект также включён: AGP 8.7.3, Gradle 8.9. Wrapper в репозиторий не включён; проверенные APK собраны SDK-скриптом.
+A Gradle project is also included: AGP 8.7.3 and Gradle 8.9. There is no Gradle wrapper; the verified APKs were built with the SDK script.
 
-## Проверки
+## Checks
 
 ```bash
 bash tools/test-state.sh
 ```
 
-Тестируется настоящая модель состояния, используемая приложением: соответствие обложки треку, отбрасывание старого ответа, отсутствие нового постера, время с затуханием и фильтры неизвестной длительности. Это не замена проверке интерфейса на Android.
+The tests exercise the state model used by the app: track/artwork identity, stale responses, missing artwork, fade timing and unknown-duration filters. They do not replace Android interface testing.
 
-Для 0.1.7 проверены компиляция Java, нативная сборка трёх ABI, подпись APK, 18 регрессионных проверок и измерение NSF через JNI на хосте. Воспроизведение NSF подтверждено пользователем в ранних сборках; полный прогон 0.1.7 на устройстве ещё не выполнен.
+Version 0.1.7 passed Java compilation, native builds for three ABIs, APK signature verification, 18 regression checks and host-side NSF duration measurement through JNI.
 
-## Текущие ограничения
+## How it uses the website
 
-- У бесконечно повторяющейся игровой музыки нет единственной конечной длительности. Если конец не найден за 180 секунд ускоренного анализа, длительность остаётся неизвестной.
-- Фильтр длительности не распознаёт назначение композиции: короткая музыкальная заставка тоже может попасть под него.
-- Нет отдельного экрана удаления скачанных коллекций.
-- После принудительной остановки Android загрузку надо запустить повторно; уже загруженные и частичные файлы сохраняются.
-- APK текущей серии подписаны ключом разработки. Не заменяйте ключ при подготовке обновления для уже установленных приложений.
+The app reads existing JSON and original music files from `https://games.oopssre.ru/`:
 
-## Лицензии и права
+| Data | Source |
+|---|---|
+| Games with music and track summaries | `assets/gallery-music.json` |
+| Collection track lists | `music/sets/*.json` |
+| Original music files | `music/files/*` |
+| Series membership, years and game information | `assets/statistics.json` |
+| Game and series artwork | `assets/gallery-games.json`, `assets/gallery-series.json` |
 
-Авторский код приложения — **[MIT](LICENSE)**, © 2026 Дмитрий Малыхин.
+No separate music backend or music API changes are required. Relationships use game identifiers rather than title matching. Only series with available music appear in the player. Downloads support SHA-256 verification and resuming partial files.
 
-Game Music Emu и его компоненты сохраняют собственные лицензии, преимущественно **LGPL-2.1-or-later**. Их тексты, соответствующие исходники, JNI и инструкции пересборки включены. MIT не перелицензирует чужую библиотеку. Подробнее: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+## Licenses and rights
 
-Скачиваемая музыка, игровые названия, постеры и другие материалы сайта не становятся MIT-контентом. Права и условия соответствующих правообладателей сохраняются. В репозиторий музыкальная библиотека и постеры игр не включены.
+Original application code is licensed under **[MIT](LICENSE)**, © 2026 Дмитрий Малыхин.
 
-## Проект
+Game Music Emu and its components retain their own licenses, primarily **LGPL-2.1-or-later**. Corresponding source, license texts, JNI code and rebuild instructions are included. The application's MIT license does not relicense these dependencies. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
-[Аркадный зал](https://games.oopssre.ru/) · [Медиатека Гремлина](https://games.oopssre.ru/gremlin.html) · [Лаборатория](https://games.oopssre.ru/lab/) · [Инженер школы Империи](https://oopssre.ru/) · [Telegram](https://t.me/oopsSRE)
+Music, game names, posters and other site materials retain their respective rights and terms. They are not covered by this project's MIT license. The music library and game posters are not included in this repository.
+
+## Project links
+
+[Arcade](https://games.oopssre.ru/) · [Gremlin media library](https://games.oopssre.ru/gremlin.html) · [Laboratory](https://games.oopssre.ru/lab/) · [Imperial School Engineer](https://oopssre.ru/) · [Telegram](https://t.me/oopsSRE)
