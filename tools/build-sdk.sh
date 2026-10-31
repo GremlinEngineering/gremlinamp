@@ -16,7 +16,7 @@ for ABI in arm64-v8a armeabi-v7a x86_64; do
  cp "build/native-$ABI/libgremlinamp.so" "build/apk/lib/$ABI/"
 done
 "$BT/aapt2" compile --dir app/src/main/res -o build/resources.zip
-"$BT/aapt2" link build/resources.zip -A app/src/main/assets -o build/unsigned.apk --manifest app/src/main/AndroidManifest.xml -I "$SDK/platforms/android-35/android.jar" --min-sdk-version 26 --target-sdk-version 35 --version-code 8 --version-name 0.1.7
+"$BT/aapt2" link build/resources.zip -A app/src/main/assets -o build/unsigned.apk --manifest app/src/main/AndroidManifest.xml -I "$SDK/platforms/android-35/android.jar" --min-sdk-version 26 --target-sdk-version 35 --version-code 9 --version-name 0.1.8
 cp build/dex/classes.dex build/apk/
 (cd build/apk && zip -q -r ../unsigned.apk .)
 "$BT/zipalign" -f -P 16 4 build/unsigned.apk build/aligned.apk
@@ -24,5 +24,5 @@ KEYSTORE="${GREMLINAMP_KEYSTORE:-build/development.keystore}"
 if [ ! -f "$KEYSTORE" ]; then
  keytool -genkeypair -keystore "$KEYSTORE" -storepass android -keypass android -alias gremlinamp -keyalg RSA -keysize 2048 -validity 10000 -dname 'CN=GremlinAmp Development'
 fi
-"$BT/apksigner" sign --ks "$KEYSTORE" --ks-pass env:GREMLINAMP_STOREPASS --out build/GremlinAmp-0.1.7.apk build/aligned.apk
-"$BT/apksigner" verify --verbose build/GremlinAmp-0.1.7.apk
+"$BT/apksigner" sign --ks "$KEYSTORE" --ks-pass env:GREMLINAMP_STOREPASS --out build/GremlinAmp-0.1.8.apk build/aligned.apk
+"$BT/apksigner" verify --verbose build/GremlinAmp-0.1.8.apk
