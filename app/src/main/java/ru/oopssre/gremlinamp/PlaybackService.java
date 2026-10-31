@@ -1,0 +1,67 @@
+package ru.oopssre.gremlinamp;
+import android.app.*;
+import android.content.*;
+import android.graphics.BitmapFactory;
+import android.media.*;
+import android.media.session.*;
+import android.os.*;
+import org.json.*;
+import java.io.*;
+import java.util.*;
+import java.util.concurrent.*;
+
+public class PlaybackService extends Service {
+ public static final class Entry {final JSONObject game,manifest;final int index; Entry(JSONObject g,JSONObject m,int i){game=g;manifest=m;index=i;}}
+ public static volatile PlaybackService instance;final PlaybackIdentity identity=new PlaybackIdentity();
+ final ExecutorService executor=Executors.newSingleThreadExecutor();final Handler main=new Handler(Looper.getMainLooper());
+ volatile List<Entry> queue=Collections.emptyList();volatile int position;volatile int generation;volatile boolean paused;volatile String title="Готов к музыке",error="";volatile long elapsed;
+ volatile String state="idle";volatile long duration;volatile boolean durationKnown;int skippedShort;volatile long seekTo=-1;boolean mediaReady;volatile boolean destroyed;volatile String artworkPath="";volatile String gameTitle="";
+ volatile boolean shuffle,repeat,repeatCollection;MediaPlayer media;MediaSession session;AudioManager am;AudioFocusRequest focus;Library library;long handle;Future<?> work;
+ public IBinder onBind(Intent i){return null;}
+ public void onCreate(){super.onCreate();instance=this;library=new Library(this);shuffle=library.preferences.getBoolean("shuffle",false);repeat=library.preferences.getBoolean("repeat",false);repeatCollection=library.preferences.getBoolean("loop",false);am=(AudioManager)getSystemService(AUDIO_SERVICE);
+  ((NotificationManager)getSystemService(NOTIFICATION_SERVICE)).createNotificationChannel(new NotificationChannel("play","Музыка",NotificationManager.IMPORTANCE_LOW));
+  session=new MediaSession(this,"GremlinAmp");session.setCallback(new MediaSession.Callback(){public void onPlay(){resume();}public void onPause(){pause();}public void onSkipToNext(){next();}public void onSkipToPrevious(){previous();}public void onStop(){stopSelf();}});
+  session.setFlags(MediaSession.FLAG_HANDLES_MEDIA_BUTTONS|MediaSession.FLAG_HANDLES_TRANSPORT_CONTROLS);session.setActive(true);
+  focus=new AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN).setAudioAttributes(new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA).setContentType(AudioAttributes.CONTENT_TYPE_MUSIC).build()).setOnAudioFocusChangeListener(v->{if(v<0)pause();}).build();
+  registerReceiver(noisy,new IntentFilter(AudioManager.ACTION_AUDIO_BECOMING_NOISY));startForeground(1,notification());
+ }
+ final BroadcastReceiver noisy=new BroadcastReceiver(){public void onReceive(Context c,Intent i){pause();}};
+ public int onStartCommand(Intent i,int f,int id){if(i!=null)switch(i.getStringExtra("action")==null?"":i.getStringExtra("action")){case "toggle"->toggle();case "next"->next();case "previous"->previous();}return START_NOT_STICKY;}
+ PendingIntent action(String a,int code){return PendingIntent.getService(this,code,new Intent(this,PlaybackService.class).putExtra("action",a),PendingIntent.FLAG_IMMUTABLE|PendingIntent.FLAG_UPDATE_CURRENT);}
+ Notification notification(){return new Notification.Builder(this,"play").setSmallIcon(android.R.drawable.ic_media_play).setContentTitle(title).setContentText(error.isEmpty()?"Музыка Аркадного зала":error).setContentIntent(PendingIntent.getActivity(this,0,new Intent(this,MainActivity.class),PendingIntent.FLAG_IMMUTABLE)).setStyle(new Notification.MediaStyle().setMediaSession(session.getSessionToken()).setShowActionsInCompactView(0,1,2)).addAction(android.R.drawable.ic_media_previous,"Назад",action("previous",1)).addAction(paused?android.R.drawable.ic_media_play:android.R.drawable.ic_media_pause,paused?"Играть":"Пауза",action("toggle",2)).addAction(android.R.drawable.ic_media_next,"Далее",action("next",3)).setOnlyAlertOnce(true).build();}
+ void announce(){main.post(()->{if(destroyed)return;session.setPlaybackState(new PlaybackState.Builder().setActions(PlaybackState.ACTION_PLAY|PlaybackState.ACTION_PAUSE|PlaybackState.ACTION_SKIP_TO_NEXT|PlaybackState.ACTION_SKIP_TO_PREVIOUS|PlaybackState.ACTION_STOP).setState(state.equals("loading")?PlaybackState.STATE_BUFFERING:state.equals("error")?PlaybackState.STATE_ERROR:state.equals("ended")?PlaybackState.STATE_STOPPED:paused?PlaybackState.STATE_PAUSED:PlaybackState.STATE_PLAYING,elapsed,paused?0:1).build());((NotificationManager)getSystemService(NOTIFICATION_SERVICE)).notify(1,notification());});}
+ public void play(List<Entry> list,int index){if(list.isEmpty()||index<0||index>=list.size())return;if(am.requestAudioFocus(focus)!=AudioManager.AUDIOFOCUS_REQUEST_GRANTED){pause();error="Не удалось получить аудиофокус";state="error";announce();return;}queue=new ArrayList<>(list);skippedShort=0;start(index);}
+ synchronized void start(int index){if(index<0||index>=queue.size())return;if(am.requestAudioFocus(focus)!=AudioManager.AUDIOFOCUS_REQUEST_GRANTED){error="Не удалось получить аудиофокус";announce();return;}
+  generation++;int token=generation;if(work!=null)work.cancel(true);releaseMedia();position=index;paused=false;elapsed=0;seekTo=-1;error="";state="loading";artworkPath="";
+  Entry e=queue.get(index);JSONObject t=e.manifest.optJSONArray("tracks").optJSONObject(e.index);title=t.optString("title");gameTitle=e.game.optString("title");identity.begin(token,title,gameTitle);durationKnown=library.displayDuration(t)>=0;duration=durationKnown?library.displayDuration(t):t.optLong("play_ms",120000);session.setMetadata(new MediaMetadata.Builder().putString(MediaMetadata.METADATA_KEY_TITLE,title).putString(MediaMetadata.METADATA_KEY_ALBUM,gameTitle).build());announce();
+  work=executor.submit(()->{try{File file=library.fetch(e.manifest,t.getJSONObject("asset"));if(token!=generation)return;library.measureTrack(t);if(token!=generation)return;final long measuredDuration=library.displayDuration(t);main.post(()->{if(token!=generation)return;durationKnown=measuredDuration>=0;if(durationKnown)duration=measuredDuration;});if(library.hiddenShort(t)){main.post(()->{if(token!=generation)return;if(++skippedShort>=queue.size()){paused=true;state="ended";error="Все композиции скрыты фильтром";announce();}else advance(false);});return;}skippedShort=0;
+   File cover;try{cover=library.cover(e.game);}catch(Exception ignored){cover=new File(library.root,"missing");}final File artwork=cover;main.post(()->{if(token!=generation||destroyed)return;artworkPath=artwork.isFile()?artwork.toString():"";identity.artwork(token,artworkPath);MediaMetadata.Builder meta=new MediaMetadata.Builder().putString(MediaMetadata.METADATA_KEY_TITLE,t.optString("title")).putString(MediaMetadata.METADATA_KEY_ALBUM,e.game.optString("title")).putString(MediaMetadata.METADATA_KEY_ARTIST,t.optString("artist"));if(durationKnown)meta.putLong(MediaMetadata.METADATA_KEY_DURATION,duration);if(artwork.isFile())meta.putBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART,Library.artwork(artwork));session.setMetadata(meta.build());});
+   if(t.optString("backend").equals("gme"))nativePlay(file,t,token);else main.post(()->mediaPlay(file,token));
+  }catch(Exception ex){if(token==generation){final String failure=String.valueOf(ex.getMessage());main.post(()->{if(token==generation){error=failure;paused=true;state="error";announce();}});}}});
+ }
+ void releaseMedia(){mediaReady=false;MediaPlayer old=media;media=null;if(old!=null){old.setOnPreparedListener(null);old.setOnCompletionListener(null);old.setOnErrorListener(null);old.release();}}
+ void mediaPlay(File file,int token){if(token!=generation||destroyed)return;try{media=new MediaPlayer();MediaPlayer p=media;p.setAudioAttributes(new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA).setContentType(AudioAttributes.CONTENT_TYPE_MUSIC).build());p.setWakeMode(this,PowerManager.PARTIAL_WAKE_LOCK);p.setDataSource(file.toString());p.setOnPreparedListener(v->{if(token==generation&&media==v){mediaReady=true;duration=v.getDuration();durationKnown=true;if(!paused)v.start();state=paused?"paused":"playing";announce();}});p.setOnCompletionListener(v->{if(token==generation)advance(true);});p.setOnErrorListener((v,a,b)->{if(token==generation){error="Ошибка аудио "+a+"/"+b;paused=true;state="error";announce();}return true;});p.prepareAsync();}catch(Exception ex){error=String.valueOf(ex.getMessage());paused=true;state="error";announce();}}
+ void nativePlay(File file,JSONObject track,int token)throws Exception {
+  long h=Gme.open(file.toString(),track.optInt("subsong"));AudioTrack out=null;PowerManager.WakeLock wake=((PowerManager)getSystemService(POWER_SERVICE)).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK,"GremlinAmp:PCM");
+  try{wake.acquire(6*60*60*1000L);int size=Math.max(16384,AudioTrack.getMinBufferSize(44100,AudioFormat.CHANNEL_OUT_STEREO,AudioFormat.ENCODING_PCM_16BIT));out=new AudioTrack.Builder().setAudioAttributes(new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA).setContentType(AudioAttributes.CONTENT_TYPE_MUSIC).build()).setAudioFormat(new AudioFormat.Builder().setSampleRate(44100).setChannelMask(AudioFormat.CHANNEL_OUT_STEREO).setEncoding(AudioFormat.ENCODING_PCM_16BIT).build()).setBufferSizeInBytes(size).setTransferMode(AudioTrack.MODE_STREAM).build();if(token!=generation)return;out.play();main.post(()->{if(token!=generation)return;state=paused?"paused":"playing";announce();});
+   long known=library.knownDuration(track);long frames=0,play=known>=0?known:track.optLong("play_ms",120000),fade=known>=0&&!track.optBoolean("duration_known")?0:Math.max(0,track.optLong("fade_ms",5000));short[] pcm=new short[4096];
+   while(token==generation&&!Thread.currentThread().isInterrupted()){
+    if(seekTo>=0){long target=seekTo;seekTo=-1;out.pause();out.flush();Gme.seek(h,(int)target);frames=target*44100/1000;final long sought=target;main.post(()->{if(token==generation)elapsed=sought;});if(!paused)out.play();}
+    if(paused){out.pause();Thread.sleep(50);continue;}if(out.getPlayState()!=AudioTrack.PLAYSTATE_PLAYING)out.play();
+    if(frames*1000/44100>=play+fade||Gme.ended(h))break;Gme.render(h,pcm);
+    for(int i=0;i<pcm.length;i+=2){long ms=(frames+i/2)*1000/44100;double gain=ms<play?1:fade==0?0:Math.max(0,1.0-(double)(ms-play)/fade);pcm[i]=(short)(pcm[i]*gain);pcm[i+1]=(short)(pcm[i+1]*gain);}
+    int off=0;while(off<pcm.length&&token==generation){int n=out.write(pcm,off,pcm.length-off,AudioTrack.WRITE_BLOCKING);if(n<0)throw new IOException("AudioTrack "+n);off+=n;}frames+=pcm.length/2;final long rendered=Math.min(frames*1000/44100,play+fade);main.post(()->{if(token==generation)elapsed=rendered;});
+   }
+   if(token==generation)main.post(()->{if(token==generation)advance(true);});
+  }finally{Gme.close(h);if(out!=null)out.release();if(wake.isHeld())wake.release();}
+ }
+ public void toggle(){if(queue.isEmpty())return;if(paused)resume();else pause();}
+ public void pause(){if(queue.isEmpty())return;paused=true;if(media!=null&&mediaReady)try{if(media.isPlaying())media.pause();}catch(IllegalStateException ignored){}if(!state.equals("error")&&!state.equals("ended"))state="paused";announce();}
+ public void resume(){if(queue.isEmpty())return;if(state.equals("ended")||state.equals("error")){start(position);return;}if(am.requestAudioFocus(focus)!=AudioManager.AUDIOFOCUS_REQUEST_GRANTED)return;paused=false;if(media!=null&&mediaReady)try{media.start();}catch(IllegalStateException e){start(position);return;}state=mediaReady||state.equals("paused")?"playing":"loading";announce();}
+ public void next(){advance(false);}
+ void advance(boolean natural){if(queue.isEmpty())return;int i;if(natural&&repeat)i=position;else if(shuffle&&queue.size()>1)i=(position+1+new Random().nextInt(queue.size()-1))%queue.size();else i=position+1;if(i>=queue.size()){if(repeatCollection)i=0;else{paused=true;state="ended";announce();return;}}start(i);}
+ public void previous(){start(Math.max(0,position-1));}
+ public long currentPosition(){if(media!=null&&mediaReady)try{return PlaybackRules.position(media.getCurrentPosition(),duration,durationKnown);}catch(IllegalStateException ignored){}return PlaybackRules.position(elapsed,duration,durationKnown);}
+ public void seek(long target){target=Math.max(0,Math.min(target,duration));if(state.equals("loading")||state.equals("idle")||state.equals("error")||state.equals("ended"))return;if(media!=null&&mediaReady){try{media.seekTo((int)target);}catch(IllegalStateException ignored){}}else seekTo=target;}
+ public void onDestroy(){destroyed=true;generation++;if(work!=null)work.cancel(true);executor.shutdownNow();releaseMedia();main.removeCallbacksAndMessages(null);am.abandonAudioFocusRequest(focus);unregisterReceiver(noisy);session.release();instance=null;super.onDestroy();}
+}
