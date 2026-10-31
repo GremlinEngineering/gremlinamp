@@ -69,7 +69,7 @@ bash tools/build-sdk.sh
 
 Output: `build/GremlinAmp-0.1.8.apk`. Unless another key is supplied, the script creates a local development key at `build/development.keystore`. Never commit signing keys.
 
-For repeatable update signing, set `GREMLINAMP_KEYSTORE` to your private keystore and `GREMLINAMP_STOREPASS` to its password. The script uses the alias `gremlinamp`. See the [release instructions](docs/RELEASING.md) (Russian).
+For repeatable update signing, set `GREMLINAMP_KEYSTORE` to your private keystore and `GREMLINAMP_STOREPASS` to its password. The script uses the alias `gremlinamp`.
 
 A Gradle project is also included: AGP 8.7.3 and Gradle 8.9. There is no Gradle wrapper; the verified APKs were built with the SDK script.
 
