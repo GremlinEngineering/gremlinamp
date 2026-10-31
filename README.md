@@ -36,9 +36,9 @@ Application downloads are listed in the [site's media library](https://games.oop
 2. Open «Игры» (Games) or «Серии» (Series), find a collection and select a track.
 3. Download music through the collection menu. Open «Скачано» (Downloaded) to listen offline.
 
-Playback includes a queue, shuffle, repeat, seeking, notification and headset controls. Tap an artwork thumbnail to open the poster with gesture zoom. Light, dark and system themes are available in settings.
+Playback includes a queue, shuffle, repeat, seeking, notification and headset controls. Tap an artwork thumbnail to open the poster with gesture zoom. Light, dark and system themes are available in settings. The resources and licenses screen includes a direct link to this GitHub repository.
 
-Clear the filters before downloading the entire library. Duration controls can hide short tracks and separately show or hide tracks whose duration is unknown.
+To download the entire library, open «Игры» (Games), tap «Сбросить» (Reset), then «Скачать» (Download). Duration controls can hide short tracks and separately show or hide tracks whose duration is unknown.
 
 ## Supported formats
 
