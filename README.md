@@ -28,7 +28,7 @@ The app is intended primarily for the site's listeners and game music enthusiast
 
 ## Install and start listening
 
-Requires **Android 8.0+**. Supports ARM64, ARMv7 and x86_64. Current version: **0.1.7**. The app interface is currently **Russian**.
+Requires **Android 8.0+**. Supports ARM64, ARMv7 and x86_64. Current version: **0.1.8**. The app interface is currently **Russian**.
 
 Look for an APK in the [site's media library](https://games.oopssre.ru/gremlin.html) or [GitHub Releases](https://github.com/GremlinEngineering/gremlinamp/releases). If no release has been published yet, build from source using the instructions below.
 
@@ -53,7 +53,7 @@ Game files may contain multiple compositions. The player uses the manifest's `su
 - There is no dedicated screen for deleting downloaded collections.
 - After Android force-stops the app, start the download again. Completed and partial files are retained.
 - Current APKs use a development signing key. Updates to an existing installation must retain the same signature.
-- NSF playback was confirmed by the user in earlier builds. A complete device test of version 0.1.7 has not been performed.
+- NSF playback was confirmed by the user in earlier builds. A complete device test of version 0.1.8 has not been performed.
 
 ## Build from source
 
@@ -67,7 +67,7 @@ export GREMLINAMP_STOREPASS=android
 bash tools/build-sdk.sh
 ```
 
-Output: `build/GremlinAmp-0.1.7.apk`. Unless another key is supplied, the script creates a local development key at `build/development.keystore`. Never commit signing keys.
+Output: `build/GremlinAmp-0.1.8.apk`. Unless another key is supplied, the script creates a local development key at `build/development.keystore`. Never commit signing keys.
 
 For repeatable update signing, set `GREMLINAMP_KEYSTORE` to your private keystore and `GREMLINAMP_STOREPASS` to its password. The script uses the alias `gremlinamp`. See the [release instructions](docs/RELEASING.md) (Russian).
 
