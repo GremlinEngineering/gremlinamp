@@ -30,7 +30,7 @@ The app is intended primarily for the site's listeners and game music enthusiast
 
 Requires **Android 8.0+**. Supports ARM64, ARMv7 and x86_64. Current version: **0.1.8**. The app interface is currently **Russian**.
 
-Look for an APK in the [site's media library](https://games.oopssre.ru/gremlin.html) or [GitHub Releases](https://github.com/GremlinEngineering/gremlinamp/releases). If no release has been published yet, build from source using the instructions below.
+Application downloads are listed in the [site's media library](https://games.oopssre.ru/gremlin.html). You can also build the APK from source using the instructions below.
 
 1. Install the APK. Android may ask you to allow installation from your browser or file manager.
 2. Open «Игры» (Games) or «Серии» (Series), find a collection and select a track.
@@ -44,7 +44,7 @@ Clear the filters before downloading the entire library. Duration controls can h
 
 [Game Music Emu](https://github.com/libgme/game-music-emu) handles NSF, NSFE, GBS, HES, SPC, VGM/VGZ, AY and SAP. Standard audio uses Android's media playback; the site also contains MP3 and OGG. Other standard codecs depend on the Android device.
 
-Game files may contain multiple compositions. The player uses the manifest's `subsong` field to select the right one. Audio is decoded for playback without saving converted copies.
+Game files may contain multiple compositions. Each composition appears as a separate track. Audio is decoded for playback without saving converted copies.
 
 ## Current limitations
 
@@ -53,11 +53,8 @@ Game files may contain multiple compositions. The player uses the manifest's `su
 - There is no dedicated screen for deleting downloaded collections.
 - After Android force-stops the app, start the download again. Completed and partial files are retained.
 - Current APKs use a development signing key. Updates to an existing installation must retain the same signature.
-- NSF playback was confirmed by the user in earlier builds. A complete device test of version 0.1.8 has not been performed.
 
 ## Build from source
-
-The verified build path is `tools/build-sdk.sh`, without Maven dependencies for the app.
 
 Requirements: Java 17, Android SDK Platform 35, Build Tools 35.0.0, NDK 27.0.12077973, CMake 3.22.1, `zip` and `keytool`.
 
@@ -71,31 +68,9 @@ Output: `build/GremlinAmp-0.1.8.apk`. Unless another key is supplied, the script
 
 For repeatable update signing, set `GREMLINAMP_KEYSTORE` to your private keystore and `GREMLINAMP_STOREPASS` to its password. The script uses the alias `gremlinamp`.
 
-A Gradle project is also included: AGP 8.7.3 and Gradle 8.9. There is no Gradle wrapper; the verified APKs were built with the SDK script.
+The SDK build script is the supported command-line build method. A Gradle project is included; a Gradle wrapper is not provided.
 
-## Checks
-
-```bash
-bash tools/test-state.sh
-```
-
-The tests exercise the state model used by the app: track/artwork identity, stale responses, missing artwork, fade timing and unknown-duration filters. They do not replace Android interface testing.
-
-Version 0.1.7 passed Java compilation, native builds for three ABIs, APK signature verification, 18 regression checks and host-side NSF duration measurement through JNI.
-
-## How it uses the website
-
-The app reads existing JSON and original music files from `https://games.oopssre.ru/`:
-
-| Data | Source |
-|---|---|
-| Games with music and track summaries | `assets/gallery-music.json` |
-| Collection track lists | `music/sets/*.json` |
-| Original music files | `music/files/*` |
-| Series membership, years and game information | `assets/statistics.json` |
-| Game and series artwork | `assets/gallery-games.json`, `assets/gallery-series.json` |
-
-Downloads support SHA-256 verification and resuming partial files.
+Run the state-model tests with `bash tools/test-state.sh`.
 
 ## Licenses and rights
 
