@@ -95,7 +95,7 @@ The app reads existing JSON and original music files from `https://games.oopssre
 | Series membership, years and game information | `assets/statistics.json` |
 | Game and series artwork | `assets/gallery-games.json`, `assets/gallery-series.json` |
 
-No separate music backend or music API changes are required. Relationships use game identifiers rather than title matching. Only series with available music appear in the player. Downloads support SHA-256 verification and resuming partial files.
+Downloads support SHA-256 verification and resuming partial files.
 
 ## Licenses and rights
 
