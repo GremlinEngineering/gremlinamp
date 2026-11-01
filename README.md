@@ -28,7 +28,7 @@ The app is intended primarily for the site's listeners and game music enthusiast
 
 ## Install and start listening
 
-Requires **Android 8.0+**. Supports ARM64, ARMv7 and x86_64. Current version: **0.2.4**. The app interface is currently **Russian**.
+Requires **Android 8.0+**. Supports ARM64, ARMv7 and x86_64. Current version: **0.2.5**. The app interface is currently **Russian**.
 
 Application downloads are listed in the [site's media library](https://games.oopssre.ru/gremlin.html). You can also build the APK from source using the instructions below.
 
@@ -78,7 +78,7 @@ export GREMLINAMP_STOREPASS=android
 bash tools/build-sdk.sh
 ```
 
-Output: `build/GremlinAmp-0.2.4.apk`. Unless another key is supplied, the script creates a local development key at `build/development.keystore`. Never commit signing keys.
+Output: `build/GremlinAmp-0.2.5.apk`. Unless another key is supplied, the script creates a local development key at `build/development.keystore`. Never commit signing keys.
 
 For repeatable update signing, set `GREMLINAMP_KEYSTORE` to your private keystore and `GREMLINAMP_STOREPASS` to its password. The script uses the alias `gremlinamp`.
 
