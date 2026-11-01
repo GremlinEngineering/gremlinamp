@@ -1,0 +1,1 @@
+package android.net;public class ConnectivityManager {public NetworkCapabilities caps;public Network getActiveNetwork(){return new Network();}public NetworkCapabilities getNetworkCapabilities(Network n){return caps;}}

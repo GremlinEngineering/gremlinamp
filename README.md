@@ -28,7 +28,7 @@ The app is intended primarily for the site's listeners and game music enthusiast
 
 ## Install and start listening
 
-Requires **Android 8.0+**. Supports ARM64, ARMv7 and x86_64. Current version: **0.1.8**. The app interface is currently **Russian**.
+Requires **Android 8.0+**. Supports ARM64, ARMv7 and x86_64. Current version: **0.2.0**. The app interface is currently **Russian**.
 
 Application downloads are listed in the [site's media library](https://games.oopssre.ru/gremlin.html). You can also build the APK from source using the instructions below.
 
@@ -38,7 +38,21 @@ Application downloads are listed in the [site's media library](https://games.oop
 
 Playback includes a queue, shuffle, repeat, seeking, notification and headset controls. Tap an artwork thumbnail to open the poster with gesture zoom. Light, dark and system themes are available in settings. The resources and licenses screen includes a direct link to this GitHub repository.
 
-To download the entire library, open «Игры» (Games), tap «Сбросить» (Reset), then «Скачать» (Download). Duration controls can hide short tracks and separately show or hide tracks whose duration is unknown.
+Use «Скачать всё» (Download all) to download all music from the site regardless of your filters. The confirmation shows the size of missing files. Duration controls can hide short tracks and separately show or hide tracks whose duration is unknown.
+
+## Downloads and updates
+
+Collections show whether they need downloading, are partial, are downloaded or have updates. Existing music files are reused. If playback has already cached a complete collection, «Сохранить» (Save) adds it to your downloaded library.
+
+In Settings → Music updates and network, enable automatic updates hourly or daily after 07:00 Moscow time. Android may defer background checks. Choose Wi-Fi only or Wi-Fi and mobile data; this also controls downloading uncached tracks for playback. Downloaded files remain playable offline.
+
+Follow selected series or the entire site library to include new games with music. Manage these subscriptions in the same settings screen. Automatic updates are off and Wi-Fi only is selected by default.
+
+## After a collection
+
+The «После коллекции…» button offers Stop, Same series, Same genre and Similar games. Similarity uses series, genre and platform metadata from the site, rather than analysing audio. Continuation can be restricted to downloaded music. Games already played during the current queue session are excluded, and platform, year and duration filters still apply. Playback stops if no suitable game remains.
+
+Shuffle, repeat track and repeat queue are in the same panel. Repeat takes precedence over starting another collection. Stop is the default.
 
 ## Supported formats
 
@@ -64,7 +78,7 @@ export GREMLINAMP_STOREPASS=android
 bash tools/build-sdk.sh
 ```
 
-Output: `build/GremlinAmp-0.1.8.apk`. Unless another key is supplied, the script creates a local development key at `build/development.keystore`. Never commit signing keys.
+Output: `build/GremlinAmp-0.2.0.apk`. Unless another key is supplied, the script creates a local development key at `build/development.keystore`. Never commit signing keys.
 
 For repeatable update signing, set `GREMLINAMP_KEYSTORE` to your private keystore and `GREMLINAMP_STOREPASS` to its password. The script uses the alias `gremlinamp`.
 
@@ -83,3 +97,4 @@ Music, game names, posters and other site materials retain their respective righ
 ## Project links
 
 [Arcade](https://games.oopssre.ru/) · [Gremlin media library](https://games.oopssre.ru/gremlin.html) · [Laboratory](https://games.oopssre.ru/lab/) · [Imperial School Engineer](https://oopssre.ru/) · [Telegram](https://t.me/oopsSRE)
+
