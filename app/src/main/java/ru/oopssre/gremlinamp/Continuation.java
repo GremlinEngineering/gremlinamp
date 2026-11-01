@@ -2,7 +2,7 @@ package ru.oopssre.gremlinamp;
 import org.json.*;
 import java.util.*;
 final class Continuation {
- static String label(String mode){return switch(mode){case "series"->"по серии";case "genre"->"по жанру";case "similar"->"похожие игры";default->"остановиться";};}
+ static String label(String mode){return switch(mode){case "rhythm"->"по ритму";case "sound"->"по звучанию";case "series"->"по серии";case "genre"->"по жанру";case "similar"->"похожие игры";default->"остановиться";};}
  static Set<String> genres(JSONObject game){Set<String> result=new HashSet<>();JSONObject terms=game.optJSONObject("terms");JSONObject g=terms==null?null:terms.optJSONObject("genre");if(g!=null)for(java.util.Iterator<String> it=g.keys();it.hasNext();)result.add(it.next());JSONObject p=game.optJSONObject("profile_genres");if(p!=null)for(java.util.Iterator<String> it=p.keys();it.hasNext();)result.add(it.next());return result;}
  static List<JSONObject> candidates(Library l,JSONObject current,Set<String> played)throws Exception {
   String mode=l.preferences.getString("after_album","stop");if(mode.equals("stop"))return Collections.emptyList();
