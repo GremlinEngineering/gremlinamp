@@ -11,11 +11,12 @@ import java.util.*;
 
 /** Streaming import keeps the full library JSON out of the application's heap. */
 final class SimilarityStore {
+ static final java.util.concurrent.atomic.AtomicBoolean REFRESHING=new java.util.concurrent.atomic.AtomicBoolean();static final java.util.concurrent.atomic.AtomicLong revision=new java.util.concurrent.atomic.AtomicLong();
  static final Object LOCK=new Object();static final Object REFRESH_LOCK=new Object();
  static final String URL=Library.BASE+"assets/music-similarity.json";
  static File database(Library l){return new File(l.root,"similarity-v1.db");}
  static String status(Library l){return l.preferences.getString("similarity_status","Индекс похожей музыки ещё не загружен");}
- static void refresh(Library l){synchronized(REFRESH_LOCK){File temp=null;SQLiteDatabase db=null;HttpURLConnection connection=null;
+ static void refresh(Library l){if(!REFRESHING.compareAndSet(false,true))return;synchronized(REFRESH_LOCK){revision.incrementAndGet();File temp=null;SQLiteDatabase db=null;HttpURLConnection connection=null;
   try{l.requireNetwork();connection=(HttpURLConnection)new java.net.URL(URL).openConnection();connection.setConnectTimeout(15000);connection.setReadTimeout(30000);connection.setInstanceFollowRedirects(false);
    String etag=l.preferences.getString("similarity_etag","");if(database(l).isFile()&&!etag.isEmpty())connection.setRequestProperty("If-None-Match",etag);
    int code=connection.getResponseCode();if(code==304){l.preferences.edit().putString("similarity_status","Индекс похожей музыки актуален").apply();return;}if(code==404)throw new IOException("Индекс ещё не опубликован на сайте");if(code!=200)throw new IOException("Индекс: HTTP "+code);
@@ -25,7 +26,7 @@ final class SimilarityStore {
    synchronized(LOCK){Files.move(temp.toPath(),database(l).toPath(),StandardCopyOption.ATOMIC_MOVE,StandardCopyOption.REPLACE_EXISTING);}temp=null;
    l.preferences.edit().putString("similarity_etag",Objects.toString(connection.getHeaderField("ETag"),"")).putString("similarity_status","Индекс похожей музыки: "+count+" композиций").putLong("similarity_updated",System.currentTimeMillis()).apply();
   }catch(Exception e){l.preferences.edit().putString("similarity_status",String.valueOf(e.getMessage())+(database(l).isFile()?" · используется сохранённый индекс":"")).apply();}
-  finally{if(db!=null)db.close();if(connection!=null)connection.disconnect();if(temp!=null){temp.delete();new File(temp+"-journal").delete();}}
+  finally{if(db!=null)db.close();if(connection!=null)connection.disconnect();if(temp!=null){temp.delete();new File(temp+"-journal").delete();}REFRESHING.set(false);revision.incrementAndGet();}
  }}
  static Object readValue(JsonReader r,int depth,int[] nodes)throws Exception{if(depth>10||++nodes[0]>20000)throw new IOException("Слишком сложная запись индекса");switch(r.peek()){
   case BEGIN_OBJECT:{JSONObject o=new JSONObject();r.beginObject();while(r.hasNext()){String key=r.nextName();o.put(key,readValue(r,depth+1,nodes));}r.endObject();return o;}
@@ -40,5 +41,16 @@ final class SimilarityStore {
  static List<SimilarityRules.Target> targets(Library l,String seed,String mode,Set<String> played)throws Exception{synchronized(LOCK){if(!database(l).isFile())throw new IOException("Индекс похожей музыки ещё не загружен. Обновите каталог после публикации индекса на сайте");try(SQLiteDatabase db=SQLiteDatabase.openDatabase(database(l).toString(),null,SQLiteDatabase.OPEN_READONLY)){
   JSONObject source=row(db,seed);if(source==null)throw new IOException("Для этой композиции анализ ещё не готов");return SimilarityRules.targets(source,mode,played,key->row(db,key));
  }}}
+ static SimilarityAvailability availability(Library l,String key){synchronized(LOCK){
+  if(!database(l).isFile())return SimilarityAvailability.evaluate(false,!key.isEmpty(),false,false,false);
+  if(key.isEmpty())return SimilarityAvailability.evaluate(true,false,false,false,false);
+  try(SQLiteDatabase db=SQLiteDatabase.openDatabase(database(l).toString(),null,SQLiteDatabase.OPEN_READONLY)){
+   JSONObject source=row(db,key);if(source==null)return SimilarityAvailability.evaluate(true,true,false,false,false);
+   Set<String> excluded=Collections.singleton(key);
+   boolean rhythm=!SimilarityRules.targets(source,"rhythm",excluded,k->row(db,k)).isEmpty();
+   boolean sound=!SimilarityRules.targets(source,"sound",excluded,k->row(db,k)).isEmpty();
+   return SimilarityAvailability.evaluate(true,true,true,rhythm,sound);
+  }catch(Exception e){return SimilarityAvailability.unavailable("Сохранённый индекс не читается · обновите индекс");}
+ }}
  static final class LimitedInput extends FilterInputStream {long bytes;final Library library;LimitedInput(InputStream input,Library l){super(input);library=l;}void check(int n)throws IOException{if(n>0)bytes+=n;if(bytes>512L*1048576)throw new IOException("Индекс больше 512 МБ");if(library.cancel||Thread.currentThread().isInterrupted())throw new InterruptedIOException("Обновление индекса остановлено");library.requireNetwork();}public int read()throws IOException{int n=in.read();check(n<0?0:1);return n;}public int read(byte[] b,int off,int len)throws IOException{int n=in.read(b,off,len);check(n);return n;}}
 }
