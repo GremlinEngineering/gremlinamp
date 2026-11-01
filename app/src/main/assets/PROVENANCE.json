@@ -13,5 +13,9 @@
   "artifacts": {
     "libgme.js": "cbf609555414614ae5203a40a257eec4f7bd84878a47830f56fd331e05eb61f4",
     "libgme.wasm": "d1a294a4a77cfc2076166b97c541e8abef4974291a49a2acc463a5baed8ca1c7"
+  },
+  "local_modifications": {
+    "ym2413": "Replaced disabled stub with adapter to bundled MIT emu2413; VGM-only CMake source inclusion; adapter mute clears held channel output.",
+    "android_native_build": "NDK r27c, Android API 26, three ABIs, static C++ runtime, 16 KiB ELF segment alignment"
   }
 }

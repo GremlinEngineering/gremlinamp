@@ -213,6 +213,11 @@ if(USE_GME_VGM)
         )
 endif()
 
+# VGM YM2413 also needs emu2413 when NSF/VRC7 is disabled.
+if(USE_GME_VGM AND NOT USE_GME_NSF)
+    list(APPEND libgme_SRCS ext/emu2413.c ext/emu2413.h)
+endif()
+
 # These headers are part of the generic gme interface.
 set (EXPORTED_HEADERS gme.h)
 
