@@ -13,6 +13,12 @@ public class SimilarityChecks {
   List<SimilarityRules.Target> targets=SimilarityRules.targets(source,"rhythm",Set.of(a),SimilarityStore.data::get);
   ok(targets.size()==2);ok(targets.get(0).key.equals(b));ok(SimilarityRules.matches(targets.get(0),track(b,"with,comma"),0));ok(!SimilarityRules.matches(targets.get(0),track(c,"with,comma"),0));ok(!SimilarityRules.matches(targets.get(0),track(b,"changed"),0));
   ok(SimilarityRules.targets(source,"rhythm",Set.of(b),SimilarityStore.data::get).size()==1);ok(SimilarityRules.targets(source,"sound",Set.of(),SimilarityStore.data::get).isEmpty());
+  SimilarityAvailability state=SimilarityAvailability.evaluate(false,true,false,false,false);ok(!state.rhythm&&!state.sound);ok(state.soundReason.contains("не загружен"));
+  state=SimilarityAvailability.evaluate(true,false,false,false,false);ok(!state.sound&&state.soundReason.contains("выберите"));
+  state=SimilarityAvailability.evaluate(true,true,false,false,false);ok(!state.rhythm&&state.rhythmReason.contains("не проанализирована"));
+  state=SimilarityAvailability.evaluate(true,true,true,false,true);ok(!state.rhythm&&state.sound);ok(state.rhythmReason.contains("ритмических"));
+  state=SimilarityAvailability.evaluate(true,true,true,true,false);ok(state.rhythm&&!state.sound);ok(state.soundReason.contains("звучанию"));
+  state=SimilarityAvailability.evaluate(true,true,true,true,true);ok(state.enabled("rhythm")&&state.enabled("sound"));ok(state.reason("rhythm").isEmpty()&&state.enabled("series"));
   File root=Files.createTempDirectory("similarity-test").toFile();Library l=new Library(new android.content.Context(root));l.preferences.edit().putBoolean("continue_local",true).putBoolean("hide_unknown",false).apply();
   JSONObject g1=new JSONObject().put("id","g1").put("title","Game 1").put("platform_label","NES").put("manifest","music/sets/g1.json"),g2=new JSONObject().put("id","g2").put("title","Game 2").put("platform_label","SNES").put("manifest","music/sets/g2.json");
   Library.atomic(l.jsonFile(Library.BASE+"assets/gallery-music.json"),new JSONObject().put("games",new JSONArray().put(g1).put(g2)).toString().getBytes());
