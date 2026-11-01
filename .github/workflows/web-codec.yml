@@ -1,0 +1,31 @@
+name: Web codec with YM2413
+on:
+  push:
+    branches: [build/web-codec-ym2413]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  decoder:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install pinned Emscripten SDK
+        run: |
+          git clone https://github.com/emscripten-core/emsdk.git "$RUNNER_TEMP/emsdk"
+          git -C "$RUNNER_TEMP/emsdk" checkout d7b4130688bfa348392b921ab04015aa15c4f154
+          "$RUNNER_TEMP/emsdk/emsdk" install 6.0.13
+          "$RUNNER_TEMP/emsdk/emsdk" activate 6.0.13
+      - name: Build existing GremlinAmp 0.2.4 codec for the web
+        run: |
+          source "$RUNNER_TEMP/emsdk/emsdk_env.sh"
+          sh tools/build-web-decoder.sh app/src/main/cpp/game-music-emu "$RUNNER_TEMP/web-codec" "$RUNNER_TEMP/web-codec-build"
+      - name: Verify YM2413 audio, mute and restart
+        run: node tools/test-web-decoder.cjs "$RUNNER_TEMP/web-codec"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gremlin-web-codec-ym2413
+          path: ${{ runner.temp }}/web-codec/
+          if-no-files-found: error
+          retention-days: 7
