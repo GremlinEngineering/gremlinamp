@@ -28,7 +28,7 @@ The app is intended primarily for the site's listeners and game music enthusiast
 
 ## Install and start listening
 
-Requires **Android 8.0+**. Supports ARM64, ARMv7 and x86_64. Current version: **0.2.0**. The app interface is currently **Russian**.
+Requires **Android 8.0+**. Supports ARM64, ARMv7 and x86_64. Current version: **0.2.1**. The app interface is currently **Russian**.
 
 Application downloads are listed in the [site's media library](https://games.oopssre.ru/gremlin.html). You can also build the APK from source using the instructions below.
 
@@ -77,7 +77,7 @@ export ANDROID_SDK_ROOT=/path/to/android-sdk
 bash tools/build-sdk.sh
 ```
 
-Output: `build/GremlinAmp-0.2.0.apk`. Unless another key is supplied, the script creates a local development key at `build/development.keystore`. Never commit signing keys.
+Output: `build/GremlinAmp-0.2.1.apk`. Unless another key is supplied, the script creates a local development key at `build/development.keystore`. Never commit signing keys.
 
 The SDK build script is the supported command-line build method. A Gradle project is included; a Gradle wrapper is not provided.
 
@@ -94,3 +94,6 @@ Music, game names, posters and other site materials retain their respective righ
 ## Project links
 
 [Arcade](https://games.oopssre.ru/) · [Gremlin media library](https://games.oopssre.ru/gremlin.html) · [Laboratory](https://games.oopssre.ru/lab/) · [Imperial School Engineer](https://oopssre.ru/) · [Telegram](https://t.me/oopsSRE)
+
+
+App updates: Settings → Обновление приложения. Optional automatic APK download (hourly or daily after 07:00 Moscow), Wi-Fi or mobile data. Installation requires Android confirmation. APK size, SHA-256, package, version and signing certificate are checked.
