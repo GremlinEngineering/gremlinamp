@@ -10,6 +10,11 @@ import java.util.*;
 class Library {
  static final String BASE="https://games.oopssre.ru/";
  final Context context;final File root;final android.content.SharedPreferences preferences; volatile boolean cancel;
+ volatile String downloadSummary="";
+ private final Set<HttpURLConnection> transfers=java.util.concurrent.ConcurrentHashMap.newKeySet();
+ private final Map<String,Map<String,JSONObject>> pictureIndexes=new HashMap<>();
+ private long pictureRevision=-1;
+ static final java.util.concurrent.atomic.AtomicLong ART_REVISION=new java.util.concurrent.atomic.AtomicLong();
  interface Progress {void update(String message);}
  Library(Context c){context=c.getApplicationContext();preferences=c.getSharedPreferences("player",0);root=new File(c.getFilesDir(),"library");root.mkdirs();}
  static String resolve(String base,String path) throws IOException {
@@ -32,7 +37,10 @@ class Library {
   if(refresh||!f.isFile())try{requireNetwork();byte[] b=request(url,16*1024*1024);JSONObject j=new JSONObject(new String(b,java.nio.charset.StandardCharsets.UTF_8));atomic(f,b);return j;}catch(Exception e){if(!f.isFile())throw e;}
   return new JSONObject(new String(Files.readAllBytes(f.toPath()),java.nio.charset.StandardCharsets.UTF_8));
  }
- JSONObject catalog(boolean refresh)throws Exception {return json(BASE+"assets/gallery-music.json",refresh);}
+ JSONObject catalog(boolean refresh)throws Exception {
+  try{return json(BASE+"assets/gallery-music.json",refresh);}
+  catch(Exception e){List<JSONObject> saved=savedGames();if(saved.isEmpty())throw e;JSONArray rows=new JSONArray();for(JSONObject g:saved)rows.put(g);return new JSONObject().put("games",rows);}
+ }
  JSONObject manifest(JSONObject game,boolean refresh)throws Exception {
   String url=resolve(BASE,game.getString("manifest"));JSONObject m=json(url,refresh);m.put("_url",url);return m;
  }
@@ -42,21 +50,26 @@ class Library {
   return new File(root,"files/"+h+"."+fmt);
  }
  boolean available(JSONObject a)throws Exception {File f=assetFile(a);return f.isFile()&&f.length()==a.getLong("bytes");}
- static final Object FILE_LOCK=new Object();
- File fetch(JSONObject m,JSONObject a)throws Exception {synchronized(FILE_LOCK){return fetchLocked(m,a);}}
+ private static final Map<String,java.util.concurrent.locks.ReentrantLock> FILE_LOCKS=new java.util.concurrent.ConcurrentHashMap<>();
+ File fetch(JSONObject m,JSONObject a)throws Exception {
+  if(available(a))return assetFile(a);
+  java.util.concurrent.locks.ReentrantLock lock=FILE_LOCKS.computeIfAbsent(a.getString("sha256")+"."+a.getString("format"),k->new java.util.concurrent.locks.ReentrantLock());
+  lock.lockInterruptibly();try{return fetchLocked(m,a);}finally{lock.unlock();}
+ }
+ void cancelTransfers(){for(HttpURLConnection connection:transfers)connection.disconnect();}
  private File fetchLocked(JSONObject m,JSONObject a)throws Exception {
   File f=assetFile(a);if(available(a))return f;
   requireNetwork();long expected=a.getLong("bytes");if(expected<0||expected>256L*1024*1024)throw new IOException("Недопустимый размер");
   String url=resolve(m.getString("_url"),a.getString("url"));f.getParentFile().mkdirs();File part=new File(f+".part");
   long offset=part.isFile()?part.length():0;if(offset>expected){part.delete();offset=0;}
-  HttpURLConnection c=(HttpURLConnection)new URL(url).openConnection();c.setConnectTimeout(15000);c.setReadTimeout(30000);c.setInstanceFollowRedirects(false);
+  HttpURLConnection c=(HttpURLConnection)new URL(url).openConnection();c.setConnectTimeout(15000);c.setReadTimeout(30000);c.setInstanceFollowRedirects(false);transfers.add(c);
   if(offset>0)c.setRequestProperty("Range","bytes="+offset+"-");
   try{int status=c.getResponseCode();
    if(status==200)offset=0;
    else if(status!=206||offset==0||!String.valueOf(c.getHeaderField("Content-Range")).startsWith("bytes "+offset+"-"))throw new IOException("HTTP/Range "+status);
    try(InputStream in=c.getInputStream();FileOutputStream out=new FileOutputStream(part,offset>0)){
     byte[] b=new byte[32768];int n;long size=offset;while((n=in.read(b))!=-1){if(cancel||Thread.currentThread().isInterrupted())throw new InterruptedIOException("Загрузка остановлена");requireNetwork();size+=n;if(size>expected)throw new IOException("Неверный размер");out.write(b,0,n);}out.getFD().sync();}
-  }finally{c.disconnect();}
+  }finally{transfers.remove(c);c.disconnect();}
   MessageDigest d=MessageDigest.getInstance("SHA-256");try(InputStream in=new FileInputStream(part)){byte[] b=new byte[32768];int n;while((n=in.read(b))!=-1)d.update(b,0,n);}
   if(part.length()!=expected||!hex(d.digest()).equals(a.getString("sha256"))){part.delete();throw new IOException("Проверка SHA-256 не пройдена");}
   Files.move(part.toPath(),f.toPath(),StandardCopyOption.REPLACE_EXISTING);return f;
@@ -67,7 +80,7 @@ class Library {
   return Files.readAllBytes(f.toPath());
  }
  List<JSONObject> enrichGames(List<JSONObject> games)throws Exception {
-  JSONObject stats=json(BASE+"assets/statistics.json",false);JSONArray editions=stats.getJSONArray("editions");Map<String,JSONObject> byId=new HashMap<>(),byHref=new HashMap<>();
+  JSONObject stats;try{stats=json(BASE+"assets/statistics.json",false);}catch(Exception e){return new ArrayList<>(games);}JSONArray editions=stats.getJSONArray("editions");Map<String,JSONObject> byId=new HashMap<>(),byHref=new HashMap<>();
   for(int i=0;i<editions.length();i++){JSONObject e=editions.getJSONObject(i);long ra=e.optLong("ra_id",0);if(ra>0)byId.put("game-ra-"+ra,e);byHref.put(e.optString("href"),e);}
   List<JSONObject> result=new ArrayList<>();for(JSONObject item:games){JSONObject g=new JSONObject(item.toString()),e=byId.get(item.getString("id"));if(e==null)e=byHref.get(item.optString("href"));if(e!=null){if(!e.isNull("year"))g.put("year",e.getInt("year"));g.put("terms",e.optJSONObject("terms"));g.put("profile_genres",e.optJSONObject("profile_genres"));}result.add(g);}return result;
  }
@@ -84,16 +97,41 @@ class Library {
   return result;
  }
  static android.graphics.Bitmap artwork(File f){android.graphics.BitmapFactory.Options o=new android.graphics.BitmapFactory.Options();o.inJustDecodeBounds=true;android.graphics.BitmapFactory.decodeFile(f.toString(),o);o.inSampleSize=1;while(Math.max(o.outWidth,o.outHeight)/o.inSampleSize>1024)o.inSampleSize*=2;o.inJustDecodeBounds=false;return android.graphics.BitmapFactory.decodeFile(f.toString(),o);}
- JSONObject pictureRecord(JSONObject item,boolean isSeries)throws Exception {
-  JSONArray rows=new JSONArray(new String(cachedDocument(BASE+"assets/gallery-"+(isSeries?"series":"games")+".json",false),java.nio.charset.StandardCharsets.UTF_8));
-  for(int i=0;i<rows.length();i++){JSONObject r=rows.getJSONObject(i);String id=isSeries?r.optString("id"):"game-"+r.optString("id");if(id.equals(item.optString("id")))return r;}return null;
+ synchronized JSONObject pictureRecord(JSONObject item,boolean isSeries)throws Exception {
+  if(pictureRevision!=ART_REVISION.get()){pictureIndexes.clear();pictureRevision=ART_REVISION.get();}
+  String kind=isSeries?"series":"games";Map<String,JSONObject> index=pictureIndexes.get(kind);
+  if(index==null){
+   JSONArray rows=new JSONArray(new String(cachedDocument(BASE+"assets/gallery-"+kind+".json",false),java.nio.charset.StandardCharsets.UTF_8));index=new HashMap<>();
+   for(int i=0;i<rows.length();i++){JSONObject r=rows.getJSONObject(i);String id=r.optString("id");index.put("id:"+(isSeries?id:"game-"+id),r);if(!r.optString("href").isEmpty())index.put("href:"+r.optString("href"),r);if(!isSeries&&id.matches("(?:series-|want-|recommend-)?ra-[0-9]+"))index.putIfAbsent("ra:"+id.substring(id.lastIndexOf("ra-")+3),r);}
+   pictureIndexes.put(kind,index);
+  }
+  JSONObject record=index.get("href:"+item.optString("href"));if(record==null)record=index.get("id:"+item.optString("id"));
+  if(record==null&&!isSeries&&item.optString("id").matches("game-ra-[0-9]+"))record=index.get("ra:"+item.optString("id").substring(8));return record;
+ }
+ String pictureSource(JSONObject record,boolean preview){
+  JSONObject views=record.optJSONObject("views"),poster=views==null?null:views.optJSONObject("poster");
+  if(preview){if(poster!=null&&!poster.optString("preview").isEmpty())return poster.optString("preview");if(!record.optString("preview").isEmpty())return record.optString("preview");}
+  return poster!=null?poster.optString("src"):record.optString("src");
+ }
+ File pictureFile(JSONObject item,boolean isSeries,String source)throws Exception {
+  String id=item.getString("id");if(!id.matches("[a-zA-Z0-9_-]+"))throw new IOException("Неверный ID");
+  return new File(root,"art/"+(isSeries?"series-":"game-")+id+"-"+hash(resolve(BASE,source).getBytes(java.nio.charset.StandardCharsets.UTF_8))+".img");
+ }
+ File cachedPicture(JSONObject item,boolean isSeries,boolean preview)throws Exception {
+  String id=item.getString("id");if(!id.matches("[a-zA-Z0-9_-]+"))throw new IOException("Неверный ID");
+  File legacy=new File(root,"covers/"+id+".img");if(!isSeries&&legacy.isFile())return legacy;
+  // Reading artwork already on disk must never initiate a metadata request.
+  File document=documentFile(BASE+"assets/gallery-"+(isSeries?"series":"games")+".json");if(!document.isFile())return new File(root,"missing");
+  JSONObject record=pictureRecord(item,isSeries);if(record==null)return new File(root,"missing");
+  for(boolean small:new boolean[]{preview,!preview}){String source=pictureSource(record,small);if(!source.isEmpty()){File f=pictureFile(item,isSeries,source);if(f.isFile()&&f.length()>0)return f;}}
+  return new File(root,"missing");
  }
  File picture(JSONObject item,boolean isSeries,boolean preview)throws Exception {
-  String id=item.getString("id");File legacy=new File(root,"covers/"+id+".img");if(!isSeries&&legacy.isFile())return legacy;JSONObject r=pictureRecord(item,isSeries);if(!id.matches("[a-zA-Z0-9_-]+"))throw new IOException("Неверный ID");
-  File missing=new File(root,"missing");if(r==null)return missing;JSONObject views=r.optJSONObject("views"),poster=views==null?null:views.optJSONObject("poster");
-  String src=poster!=null?poster.optString("src"):r.optString("src");if(preview){if(poster!=null&&!poster.optString("preview").isEmpty())src=poster.optString("preview");else if(!r.optString("preview").isEmpty())src=r.optString("preview");}
-  if(src.isEmpty())return missing;String url=resolve(BASE,src);File f=new File(root,"art/"+(isSeries?"series-":"game-")+id+"-"+hash(url.getBytes(java.nio.charset.StandardCharsets.UTF_8))+".img");if(!f.isFile()){requireNetwork();atomic(f,request(url,16*1024*1024));}return f;
+  File cached=cachedPicture(item,isSeries,preview);if(cached.isFile()&&(preview||!networkAllowed()))return cached;
+  JSONObject record=pictureRecord(item,isSeries);if(record==null)return new File(root,"missing");String source=pictureSource(record,preview);if(source.isEmpty())return new File(root,"missing");
+  File f=pictureFile(item,isSeries,source);if(!f.isFile()||f.length()==0){requireNetwork();atomic(f,request(resolve(BASE,source),16*1024*1024));}return f;
  }
+ File documentFile(String url)throws Exception{return new File(root,"documents/"+hash(url.getBytes(java.nio.charset.StandardCharsets.UTF_8))+".cache");}
  File cover(JSONObject game)throws Exception{return picture(game,false,false);}
  File measurementFile(JSONObject t)throws Exception {return new File(root,"timings/v1-"+t.getJSONObject("asset").getString("sha256")+"-"+t.optInt("subsong")+".json");}
  JSONObject timing(JSONObject t)throws Exception {File f=measurementFile(t);return f.isFile()?new JSONObject(new String(Files.readAllBytes(f.toPath()),java.nio.charset.StandardCharsets.UTF_8)):null;}
@@ -113,27 +151,72 @@ class Library {
   for(JSONObject g:games){JSONArray ts=manifest(g,false).getJSONArray("tracks");for(int i=0;i<ts.length();i++){JSONObject a=ts.getJSONObject(i).getJSONObject("asset");if(seen.add(a.getString("sha256"))&&!available(a))total+=a.getLong("bytes");}}return total;
  }
  void download(List<JSONObject> games,Progress progress)throws Exception {
-  if(Thread.currentThread().isInterrupted())throw new InterruptedIOException();cancel=false;int count=0;for(JSONObject g:games){JSONObject m=manifest(g,false);JSONArray ts=m.getJSONArray("tracks");
-   for(int i=0;i<ts.length();i++){if(cancel)throw new InterruptedIOException("Загрузка остановлена");JSONObject a=ts.getJSONObject(i).getJSONObject("asset");progress.update(g.getString("title")+" · "+(i+1)+"/"+ts.length());fetch(m,a);if(cancel)throw new InterruptedIOException("Загрузка остановлена");progress.update("Проверяю длительность · "+g.getString("title")+" · "+(i+1));measureTrack(ts.getJSONObject(i));}
-   try{cover(g);}catch(Exception ignored){}markComplete(g,m);count++;progress.update("Сохранено коллекций: "+count+"/"+games.size());}
-  try{Set<String> selected=new HashSet<>();for(JSONObject g:games)selected.add(g.getString("id"));JSONArray ss=series(false);for(int i=0;i<ss.length();i++){if(cancel)break;JSONObject sr=ss.getJSONObject(i);boolean related=false;JSONArray members=sr.optJSONArray("members");if(members!=null)for(int k=0;k<members.length();k++)if(selected.contains("game-ra-"+members.getJSONObject(k).optLong("ra_id")))related=true;if(related){progress.update("Сохраняю постер серии · "+sr.optString("title"));try{picture(sr,true,false);}catch(Exception ignored){}}}}catch(Exception ignored){}
+  if(Thread.currentThread().isInterrupted())throw new InterruptedIOException("Загрузка остановлена");cancel=false;downloadSummary="";int count=0,incomplete=0;
+  List<String> metadata=prepareOffline(progress);List<JSONObject> enriched=enrichGames(games);
+  JSONArray allSeries;try{allSeries=series(false);}catch(Exception e){allSeries=new JSONArray();}
+  Map<String,List<String>> seriesProblems=new HashMap<>();Map<String,List<File>> seriesFiles=new HashMap<>();
+  // Artwork is prepared before music; failed pictures remain visible and retryable.
+  for(JSONObject g:enriched){
+   checkCancelled();List<String> missing=new ArrayList<>(metadata);List<File> required=new ArrayList<>();
+   saveArtwork(g,false,progress,missing,required);
+   for(int s=0;s<allSeries.length();s++){JSONObject sr=allSeries.getJSONObject(s);boolean related=false;for(JSONObject member:seriesGames(sr,Collections.singletonList(g)))related=true;if(!related)continue;String id=sr.getString("id");
+    if(!seriesProblems.containsKey(id)){List<String> problems=new ArrayList<>();List<File> files=new ArrayList<>();saveArtwork(sr,true,progress,problems,files);seriesProblems.put(id,problems);seriesFiles.put(id,files);}missing.addAll(seriesProblems.get(id));required.addAll(seriesFiles.get(id));
+   }
+   JSONObject m=manifest(g,false);JSONArray ts=m.getJSONArray("tracks");
+   for(int i=0;i<ts.length();i++){checkCancelled();JSONObject t=ts.getJSONObject(i),a=t.getJSONObject("asset");progress.update(g.getString("title")+" · "+(i+1)+"/"+ts.length());fetch(m,a);checkCancelled();progress.update("Проверяю длительность · "+g.getString("title")+" · "+(i+1));try{measureTrack(t);}catch(Exception e){checkCancelled();progress.update("Длительность не определена · "+g.getString("title")+": "+e.getMessage());}}
+   checkCancelled();markComplete(g,m);saveOfflineState(g,missing,required);if(!missing.isEmpty())incomplete++;count++;
+   progress.update("Сохранено коллекций: "+count+"/"+games.size()+(missing.isEmpty()?"":" · докачать офлайн: "+String.join("; ",missing)));
+  }
+  downloadSummary=incomplete==0?"Музыка, постеры и каталоги сохранены для офлайна":"Музыка сохранена. Неполный офлайн-комплект: "+incomplete+" коллекций · нажмите «Докачать офлайн»";
  }
+ void checkCancelled()throws InterruptedIOException{if(cancel||Thread.currentThread().isInterrupted())throw new InterruptedIOException("Загрузка остановлена");}
+ List<String> prepareOffline(Progress progress)throws Exception{
+  List<String> missing=new ArrayList<>();progress.update("Сохраняю каталоги и оформление для офлайна…");
+  try{JSONObject cat=catalog(false);if(!jsonFile(BASE+"assets/gallery-music.json").isFile())atomic(jsonFile(BASE+"assets/gallery-music.json"),cat.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));}catch(Exception e){missing.add("каталог музыки: "+e.getMessage());}
+  try{json(BASE+"assets/statistics.json",false);}catch(Exception e){missing.add("каталог серий: "+e.getMessage());}
+  for(String kind:new String[]{"games","series"})try{cachedDocument(BASE+"assets/gallery-"+kind+".json",true);}catch(Exception e){missing.add("каталог картинок "+(kind.equals("games")?"игр":"серий")+": "+e.getMessage());}
+  ART_REVISION.incrementAndGet();checkCancelled();return missing;
+ }
+ void saveArtwork(JSONObject item,boolean isSeries,Progress progress,List<String> missing,List<File> required)throws Exception{
+  checkCancelled();String title=item.optString("title",item.optString("name"));progress.update("Сохраняю постер"+(isSeries?" серии":"")+" · "+title);
+  try{JSONObject record=pictureRecord(item,isSeries);if(record==null)throw new IOException("картинка не опубликована");Set<String> sources=new LinkedHashSet<>();sources.add(pictureSource(record,false));sources.add(pictureSource(record,true));for(String source:sources){checkCancelled();if(source.isEmpty())throw new IOException("нет адреса картинки");File file=pictureFile(item,isSeries,source);if(!file.isFile()||file.length()==0){requireNetwork();atomic(file,request(resolve(BASE,source),16*1024*1024));}required.add(file);}}
+  catch(Exception e){checkCancelled();String problem="постер "+title+": "+e.getMessage();missing.add(problem);progress.update(problem);}
+ }
+ File snapshotFile(JSONObject game)throws Exception{return stateFile("snapshots",game);}
+ File stateFile(String kind,JSONObject game)throws Exception{String id=game.getString("id");if(!id.matches("[a-zA-Z0-9_-]+"))throw new IOException("Неверный ID");return new File(root,kind+"/"+id+".json");}
+ JSONObject localManifest(JSONObject game)throws Exception{
+  File snapshot=snapshotFile(game);if(snapshot.isFile()){JSONObject value=new JSONObject(new String(Files.readAllBytes(snapshot.toPath()),java.nio.charset.StandardCharsets.UTF_8));JSONObject m=value.getJSONObject("manifest");m.put("_url",resolve(BASE,value.getJSONObject("game").getString("manifest")));return m;}
+  JSONObject m=cachedManifest(game);if(m!=null)return m;for(JSONObject saved:savedGames())if(saved.optString("id").equals(game.optString("id")))return cachedManifest(saved);return null;
+ }
+ void saveOfflineState(JSONObject game,List<String> missing,List<File> files)throws Exception{
+  JSONArray problems=new JSONArray(),required=new JSONArray();for(String p:missing)problems.put(p);for(File f:files)required.put(root.toPath().relativize(f.toPath()).toString());
+  atomic(stateFile("offline",game),new JSONObject().put("schema",1).put("missing",problems).put("files",required).toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));revision.incrementAndGet();
+ }
+ boolean offlineReady(JSONObject game){try{
+  File state=stateFile("offline",game);if(!state.isFile())return false;JSONObject value=new JSONObject(new String(Files.readAllBytes(state.toPath()),java.nio.charset.StandardCharsets.UTF_8));if(value.optInt("schema")!=1||value.getJSONArray("missing").length()!=0)return false;
+  if(!jsonFile(BASE+"assets/gallery-music.json").isFile()||!jsonFile(BASE+"assets/statistics.json").isFile())return false;
+  for(String kind:new String[]{"games","series"})if(!documentFile(BASE+"assets/gallery-"+kind+".json").isFile())return false;
+  JSONArray files=value.getJSONArray("files");for(int i=0;i<files.length();i++){File file=new File(root,files.getString(i));if(!file.isFile()||file.length()==0)return false;}return true;
+ }catch(Exception e){return false;}}
  static final java.util.concurrent.locks.ReentrantLock DOWNLOAD_LOCK=new java.util.concurrent.locks.ReentrantLock();
  static final java.util.concurrent.atomic.AtomicLong revision=new java.util.concurrent.atomic.AtomicLong();
- void requireNetwork()throws IOException {if(!NetworkPolicy.allowed(context,preferences.getString("network","wifi")))throw new IOException("Ожидание разрешённой сети");}
+ boolean networkAllowed(){return NetworkPolicy.allowed(context,preferences.getString("network","wifi"));}
+ void requireNetwork()throws IOException {if(!networkAllowed())throw new IOException("Ожидание разрешённой сети");}
  JSONObject freshJson(String url)throws Exception {requireNetwork();byte[] b=request(url,16*1024*1024);JSONObject j=new JSONObject(new String(b,java.nio.charset.StandardCharsets.UTF_8));atomic(jsonFile(url),b);return j;}
  File jsonFile(String url)throws Exception{return new File(root,"json/"+hash(url.getBytes(java.nio.charset.StandardCharsets.UTF_8))+".json");}
  JSONObject cachedManifest(JSONObject game)throws Exception {String url=resolve(BASE,game.getString("manifest"));File f=jsonFile(url);if(!f.isFile())return null;JSONObject j=new JSONObject(new String(Files.readAllBytes(f.toPath()),java.nio.charset.StandardCharsets.UTF_8));j.put("_url",url);return j;}
  void markComplete(JSONObject game,JSONObject manifest)throws Exception {
   String id=game.getString("id");if(!id.matches("[a-zA-Z0-9_-]+"))throw new IOException("Неверный ID");
+  if(manifest.optJSONArray("tracks")!=null){for(int i=0;i<manifest.getJSONArray("tracks").length();i++)if(!available(manifest.getJSONArray("tracks").getJSONObject(i).getJSONObject("asset")))throw new IOException("Коллекция скачана не полностью");atomic(snapshotFile(game),new JSONObject().put("game",game).put("manifest",manifest).toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));}
   atomic(new File(root,"saved/"+id+".json"),game.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
   atomic(new File(root,"complete/"+id),new byte[]{1});revision.incrementAndGet();
  }
  boolean subscribed(JSONObject g){String id=g.optString("id");return id.matches("[a-zA-Z0-9_-]+")&&new File(root,"complete/"+id).isFile();}
  List<JSONObject> savedGames(){List<JSONObject> result=new ArrayList<>();File[] files=new File(root,"saved").listFiles();if(files!=null)for(File f:files)try{result.add(new JSONObject(new String(Files.readAllBytes(f.toPath()),java.nio.charset.StandardCharsets.UTF_8)));}catch(Exception ignored){}return result;}
  int[] localCounts(JSONObject g){try{JSONObject m=cachedManifest(g);if(m==null)return new int[]{0,0};JSONArray tracks=m.getJSONArray("tracks");int have=0;for(int i=0;i<tracks.length();i++)if(available(tracks.getJSONObject(i).getJSONObject("asset")))have++;return new int[]{have,tracks.length()};}catch(Exception e){return new int[]{0,0};}}
- boolean fullyLocal(JSONObject g){int[] n=localCounts(g);return n[1]>0&&n[0]==n[1];}
- String downloadLabel(JSONObject g){int[] n=localCounts(g);if(n[1]>0&&n[0]==n[1])return subscribed(g)?"Скачано":"Сохранить";if(subscribed(g))return "Есть обновления";if(n[0]>0)return "Докачать "+n[0]+"/"+n[1];return "Скачать";}
+ boolean fullyLocal(JSONObject g){try{JSONObject m=localManifest(g);if(m==null||m.getJSONArray("tracks").length()==0)return false;for(int i=0;i<m.getJSONArray("tracks").length();i++)if(!available(m.getJSONArray("tracks").getJSONObject(i).getJSONObject("asset")))return false;return true;}catch(Exception e){return false;}}
+ String downloadLabel(JSONObject g){int[] n=localCounts(g);if(n[1]>0&&n[0]==n[1])return subscribed(g)?offlineReady(g)?"Скачано":"Докачать офлайн":"Сохранить";if(subscribed(g))return "Есть обновления";if(n[0]>0)return "Докачать "+n[0]+"/"+n[1];return "Скачать";}
+ String offlineProblem(JSONObject game){try{File f=stateFile("offline",game);if(!f.isFile())return subscribed(game)?"Музыка сохранена. Для полного офлайна докачайте оформление и каталоги.":"";JSONArray missing=new JSONObject(new String(Files.readAllBytes(f.toPath()),java.nio.charset.StandardCharsets.UTF_8)).getJSONArray("missing");List<String> lines=new ArrayList<>();for(int i=0;i<Math.min(3,missing.length());i++)lines.add(missing.getString(i));return String.join("\n",lines);}catch(Exception e){return "Офлайн-комплект требует проверки.";}}
  void trackSeries(String id){Set<String> ids=new HashSet<>(preferences.getStringSet("saved_series",Collections.emptySet()));ids.add(id);preferences.edit().putStringSet("saved_series",ids).apply();}
  void syncSaved(Progress progress)throws Exception {
   cancel=false;JSONObject cat=freshJson(BASE+"assets/gallery-music.json");List<JSONObject> all=new ArrayList<>();JSONArray rows=cat.getJSONArray("games");for(int i=0;i<rows.length();i++)all.add(rows.getJSONObject(i));

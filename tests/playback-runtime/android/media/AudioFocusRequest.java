@@ -1,0 +1,1 @@
+package android.media;public class AudioFocusRequest{public interface Listener{void call(int i);}public static class Builder{public Builder(int i){}public Builder setAudioAttributes(AudioAttributes a){return this;}public Builder setOnAudioFocusChangeListener(Listener l){return this;}public AudioFocusRequest build(){return new AudioFocusRequest();}}}

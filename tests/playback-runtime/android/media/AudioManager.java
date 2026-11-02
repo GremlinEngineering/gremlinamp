@@ -1,0 +1,1 @@
+package android.media;public class AudioManager{public static final int AUDIOFOCUS_GAIN=1,AUDIOFOCUS_REQUEST_GRANTED=1;public static final String ACTION_AUDIO_BECOMING_NOISY="noisy";public int requestAudioFocus(AudioFocusRequest r){return 1;}public void abandonAudioFocusRequest(AudioFocusRequest r){}}

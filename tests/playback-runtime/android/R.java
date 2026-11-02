@@ -1,0 +1,1 @@
+package android; public class R{public static class drawable{public static final int ic_media_play=1,ic_media_pause=2,ic_media_next=3,ic_media_previous=4;}}

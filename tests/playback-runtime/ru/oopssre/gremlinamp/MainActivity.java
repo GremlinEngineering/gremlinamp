@@ -1,0 +1,1 @@
+package ru.oopssre.gremlinamp;public class MainActivity{}
