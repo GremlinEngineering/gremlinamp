@@ -11,7 +11,7 @@ final class MusicSimilarity {
   Map<String,JSONObject> manifests=new HashMap<>();String platform=l.preferences.getString("platform_filter",""),year=l.preferences.getString("year_filter","");
   for(SimilarityRules.Target target:targets){if(!active.getAsBoolean()||Thread.currentThread().isInterrupted())throw new InterruptedIOException();JSONObject game=games.get(target.game);if(game==null)continue;
    if(!platform.isEmpty()&&!platform.equals(game.optString("platform_label")))continue;if(!year.isEmpty()&&!year.equals(game.has("year")?String.valueOf(game.optInt("year")):"Не указан"))continue;
-   try{JSONObject manifest;if(manifests.containsKey(target.game))manifest=manifests.get(target.game);else{manifest=localOnly||preview?l.cachedManifest(game):l.manifest(game,false);manifests.put(target.game,manifest);}if(manifest==null)continue;JSONArray tracks=manifest.getJSONArray("tracks");for(int i=0;i<tracks.length();i++){JSONObject t=tracks.getJSONObject(i);if(SimilarityRules.matches(target,t,i)&&!l.hiddenShort(t)&&(!localOnly||l.available(t.getJSONObject("asset"))))return new Selection(game,manifest,i);}}
+   try{JSONObject manifest;if(manifests.containsKey(target.game))manifest=manifests.get(target.game);else{manifest=localOnly?l.localManifest(game):preview?l.cachedManifest(game):l.manifest(game,false);manifests.put(target.game,manifest);}if(manifest==null)continue;JSONArray tracks=manifest.getJSONArray("tracks");for(int i=0;i<tracks.length();i++){JSONObject t=tracks.getJSONObject(i);if(SimilarityRules.matches(target,t,i)&&!l.hiddenShort(t)&&(!localOnly||l.available(t.getJSONObject("asset"))))return new Selection(game,manifest,i);}}
    catch(IOException|JSONException ignored){}
   }
   return null;

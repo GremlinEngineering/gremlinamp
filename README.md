@@ -28,7 +28,7 @@ The app is intended primarily for the site's listeners and game music enthusiast
 
 ## Install and start listening
 
-Requires **Android 8.0+**. Supports ARM64, ARMv7 and x86_64. Current version: **0.2.5**. The app interface is currently **Russian**.
+Requires **Android 8.0+**. Supports ARM64, ARMv7 and x86_64. Current version: **0.2.6**. The app interface is currently **Russian**.
 
 Application downloads are listed in the [site's media library](https://games.oopssre.ru/gremlin.html). You can also build the APK from source using the instructions below.
 
@@ -78,7 +78,7 @@ export GREMLINAMP_STOREPASS=android
 bash tools/build-sdk.sh
 ```
 
-Output: `build/GremlinAmp-0.2.5.apk`. Unless another key is supplied, the script creates a local development key at `build/development.keystore`. Never commit signing keys.
+Output: `build/GremlinAmp-0.2.6.apk`. Unless another key is supplied, the script creates a local development key at `build/development.keystore`. Never commit signing keys.
 
 For repeatable update signing, set `GREMLINAMP_KEYSTORE` to your private keystore and `GREMLINAMP_STOREPASS` to its password. The script uses the alias `gremlinamp`.
 
@@ -106,3 +106,10 @@ Audio continuation: “По ритму” and “По звучанию” use th
 Unavailable audio modes are disabled with a reason before selection. Repeat-one and repeat-queue are mutually exclusive; continuation is suspended while repeat is active. Index refresh shows progress and prevents duplicate requests.
 
 VGM/VGZ YM2413 audio uses the bundled MIT-licensed emu2413 core through a local adapter. The decoder regression test generates its own YM2413-only VGM; run tools/test-ym2413.py against a host-built libgme shared library.
+
+
+Version 0.2.6 saves game and related-series artwork before music, matching cards by href and stable RA identity. “Докачать офлайн” means audio is saved but artwork or catalogs are incomplete; collection actions show the reason. Retrying reuses downloaded audio. A saved full poster can supply an offline thumbnail.
+
+Interrupted updates preserve the last fully downloaded manifest in the Downloaded view. Startup displays the local catalog before refreshing it. The acoustic index is optional for ordinary playback; an already imported index works offline.
+
+Previous/Next follow actual playback history across shuffle and album boundaries. Continuations append to the queue. Missing files are skipped with a bounded retry count, and ending the queue releases the audio transport. Artwork retrieval and duration measurement do not delay downloaded audio.

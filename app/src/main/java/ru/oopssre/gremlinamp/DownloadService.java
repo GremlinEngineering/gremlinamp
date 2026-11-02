@@ -20,9 +20,9 @@ public class DownloadService extends Service {
   task=io.submit(()->{boolean locked=false;PowerManager.WakeLock wake=((PowerManager)getSystemService(POWER_SERVICE)).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK,"GremlinAmp:Download");
    try{wake.acquire(6*60*60*1000L);progress="Ожидание текущей загрузки…";Library.DOWNLOAD_LOCK.lockInterruptibly();locked=true;if(Thread.currentThread().isInterrupted())throw new java.io.InterruptedIOException();
     Library.Progress report=s->{progress=s;((NotificationManager)getSystemService(NOTIFICATION_SERVICE)).notify(2,notification());};
-    if(sync){library.syncSaved(report);SimilarityStore.refresh(library);MusicSyncJob.result(library,"Музыка обновлена",true);}
-    else {JSONArray a=new JSONArray(payload);List<JSONObject> games=new ArrayList<>();for(int k=0;k<a.length();k++)games.add(a.getJSONObject(k));library.download(games,report);}
-    progress="Музыка скачана и доступна без сети";
+    if(sync){library.syncSaved(report);SimilarityStore.refresh(library);MusicSyncJob.result(library,library.downloadSummary,true);}
+    else {JSONArray a=new JSONArray(payload);List<JSONObject> games=new ArrayList<>();for(int k=0;k<a.length();k++)games.add(a.getJSONObject(k));library.download(games,report);report.update("Проверяю индекс похожей музыки…");SimilarityStore.refresh(library);}
+    progress=library.downloadSummary;
    }
    catch(Exception e){if(sync)MusicSyncJob.result(library,"Обновление отложено: "+e.getMessage(),false);progress=library.cancel||Thread.currentThread().isInterrupted()?"Загрузка отменена":"Загрузка остановлена: "+e.getMessage();}
    finally{Library.revision.incrementAndGet();if(locked)Library.DOWNLOAD_LOCK.unlock();if(wake.isHeld())wake.release();stopForeground(STOP_FOREGROUND_REMOVE);stopSelf();}
