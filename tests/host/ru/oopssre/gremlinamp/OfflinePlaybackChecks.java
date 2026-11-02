@@ -45,13 +45,24 @@ public final class OfflinePlaybackChecks {
   fixture(l,game,manifest);Library.atomic(l.assetFile(asset),new byte[]{1,2,3});
   check(l.pictureRecord(game,false)!=null,"series-ra artwork found by href");JSONObject noHref=new JSONObject(game.toString());noHref.remove("href");check(l.pictureRecord(noHref,false)!=null,"stable RA identity fallback");
   File full=l.pictureFile(game,false,"assets/full.png?v=1");Library.atomic(full,new byte[]{5});check(l.picture(game,false,true).equals(full),"full poster substitutes for missing thumbnail offline");
-  l.download(List.of(game),s->{});check(l.downloadLabel(game).equals("Докачать офлайн"),"missing artwork cannot claim complete offline download");check(l.fullyLocal(game),"missing artwork does not disable saved music");check(l.downloadSummary.contains("Неполный"),"partial artwork is reported");
+  l.download(List.of(game),s->{});check(l.downloadLabel(game).equals("Повторить"),"missing artwork cannot claim complete offline download");check(l.fullyLocal(game),"missing artwork does not disable saved music");check(l.downloadSummary.contains("автоматически"),"partial artwork is reported");
   Library.atomic(l.pictureFile(game,false,"assets/small.webp?v=1"),new byte[]{6});l.download(List.of(game),s->{});check(l.downloadLabel(game).equals("Скачано"),"retry completes artwork without another audio download");
+  JSONObject metadataOnly=new JSONObject(game.toString()).put("manifest","music/sets/1-metadata-update.json");cache(l,metadataOnly.getString("manifest"),manifest);check(l.downloadLabel(metadataOnly).equals("Обновить"),"new track metadata remains an update even when all audio bytes are already saved");
   JSONObject updated=new JSONObject(game.toString()).put("manifest","music/sets/1-v2.json");JSONObject changed=new JSONObject().put("tracks",new JSONArray().put(track(asset(new byte[]{9}))));cache(l,updated.getString("manifest"),changed);
-  check(l.localManifest(updated).getJSONArray("tracks").getJSONObject(0).getJSONObject("asset").getString("sha256").equals(asset.getString("sha256")),"incomplete update retains prior playable manifest");check(l.downloadLabel(updated).equals("Есть обновления"),"pending update remains visible");
+  check(l.localManifest(updated).getJSONArray("tracks").getJSONObject(0).getJSONObject("asset").getString("sha256").equals(asset.getString("sha256")),"incomplete update retains prior playable manifest");check(l.downloadLabel(updated).equals("Обновить"),"pending update remains visible");
   boolean rejected=false;try{l.markComplete(updated,changed);}catch(IOException expected){rejected=true;}check(rejected&&l.fullyLocal(updated),"incomplete manifest cannot replace saved snapshot");
   l.jsonFile(Library.BASE+"assets/gallery-music.json").delete();check(l.catalog(false).getJSONArray("games").length()==1,"saved library opens without cached global catalog");
   l.jsonFile(Library.BASE+"assets/statistics.json").delete();check(l.enrichGames(List.of(game)).size()==1,"missing statistics does not block local browsing or genre data");fixture(l,game,manifest);
+  check(l.remainingCached(List.of(game))==0,"download confirmation uses cached sizes without a network preflight");
+  check(l.remainingCached(List.of(game(999)))==-1,"unknown download size does not fetch hundreds of manifests before confirmation");
+  Library.atomic(l.pictureFile(game,false,"assets/small.webp?v=1"),new byte[]{6});
+  Files.deleteIfExists(l.stateFile("offline",game).toPath());
+  check(l.downloadLabel(game).equals("Ожидание"),"old saved collection needs no manual artwork command");
+  Library artworkOnly=new Library(context){File fetch(JSONObject m,JSONObject a){throw new AssertionError("artwork repair must not fetch audio");}void measureTrack(JSONObject t){throw new AssertionError("artwork repair must not measure audio");}};
+  artworkOnly.repairSaved(message->{});check(artworkOnly.offlineReady(game),"automatic repair fills legacy artwork without downloading sound");
+  l.queueDownloads(List.of(game));Library restarted=new Library(context);check(restarted.pendingGames().size()==1,"requested download survives process restart");check(restarted.downloadLabel(game).equals("Ожидание"),"queued work is a status rather than another command");
+  restarted.pausePending();check(new Library(context).pendingGames().isEmpty(),"explicit pause prevents automatic restart");
+  Library retry=new Library(context);retry.queueDownloads(List.of(game));check(retry.pendingGames().size()==1&&!retry.paused(game),"same download action resumes a paused request");retry.download(List.of(game),message->{});check(!retry.pending(game)&&retry.offlineReady(game),"successful retry clears persistent pending work");
   // No unrelated download lock is involved in accessing a completed file.
   ExecutorService io=Executors.newSingleThreadExecutor();Future<File> ready=io.submit(()->l.fetch(manifest,asset));check(ready.get(500,TimeUnit.MILLISECONDS).isFile(),"completed audio returns immediately without network");io.shutdownNow();
   List<PlaybackService.Entry> queue=new ArrayList<>();for(int i=0;i<4;i++)queue.add(new PlaybackService.Entry(game,manifest,0));
@@ -65,6 +76,7 @@ public final class OfflinePlaybackChecks {
   try(Probe p=new Probe(l)){
    l.preferences.edit().putString("after_album","stop").apply();p.queue=List.of(queue.get(0));p.media=new android.media.MediaPlayer();android.media.MediaPlayer audio=p.media;audio.start();p.mediaReady=true;p.state="playing";p.next();check(p.state.equals("ended")&&!audio.isPlaying()&&p.media==null,"Next on last track releases actual media transport");
   }
+  try(Probe p=new Probe(l)){p.queue=List.of(queue.get(0));p.position=0;p.state="ended";p.localOnly=true;p.enqueue(List.of(queue.get(1)),false);check(p.pendingResume==1&&!p.localOnly,"adding online audio to an ended local queue prepares the new track");p.resume();check(p.started==1,"Play after enqueue starts new audio rather than replaying the last completed track");}
   JSONObject mixed=new JSONObject().put("tracks",new JSONArray().put(track(asset(new byte[]{7}))).put(track));
   try(RealProbe p=new RealProbe(l)){p.localOnly=true;p.queue=List.of(new PlaybackService.Entry(game,mixed,0),new PlaybackService.Entry(game,mixed,1));p.start(0);await(()->p.audioStarted);check(p.position==1,"offline queue skips missing file and plays downloaded next track");check(p.history.current()==1,"missing audio is not recorded as listened");}
   CountDownLatch artworkEntered=new CountDownLatch(1),releaseArtwork=new CountDownLatch(1);Context online=new Context(Files.createTempDirectory("gremlin-art-delay").toFile());android.net.NetworkCapabilities net=new android.net.NetworkCapabilities();net.wifi=true;net.internet=true;online.cm.caps=net;

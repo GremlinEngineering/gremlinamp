@@ -12,7 +12,7 @@ public class MusicSyncJob extends JobService {
   if(l.preferences.getString("sync_interval","daily").equals("hourly"))builder.setPeriodic(60*60*1000L,10*60*1000L);
   else builder.setMinimumLatency(retry?60*60*1000L:SyncRules.untilMorning(System.currentTimeMillis()));js.schedule(builder.build());
  }
- void finish(JobParameters params,boolean retry){jobFinished(params,false);if(library.preferences.getString("sync_interval","daily").equals("daily"))new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(()->schedule(this,true,retry),500);}
+ void finish(JobParameters params,boolean retry){jobFinished(params,false);LibraryMaintenanceJob.schedule(this);if(library.preferences.getString("sync_interval","daily").equals("daily"))new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(()->schedule(this,true,retry),500);}
  static void result(Library l,String text,boolean success){status=text;l.preferences.edit().putString("sync_status",text).putLong(success?"sync_success":"sync_attempt",System.currentTimeMillis()).apply();Library.revision.incrementAndGet();}
  public boolean onStartJob(JobParameters params){library=new Library(this);stopped=false;active=this;
   if(!library.preferences.getBoolean("auto_music",false)){active=null;return false;}
