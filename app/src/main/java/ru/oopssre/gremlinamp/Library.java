@@ -150,8 +150,10 @@ class Library {
   Set<String> seen=new HashSet<>();long total=0;
   for(JSONObject g:games){JSONArray ts=manifest(g,false).getJSONArray("tracks");for(int i=0;i<ts.length();i++){JSONObject a=ts.getJSONObject(i).getJSONObject("asset");if(seen.add(a.getString("sha256"))&&!available(a))total+=a.getLong("bytes");}}return total;
  }
+ long remainingCached(List<JSONObject> games){try{Set<String> seen=new HashSet<>();long total=0;for(JSONObject game:games){JSONObject manifest=cachedManifest(game);if(manifest==null)return -1;JSONArray tracks=manifest.getJSONArray("tracks");for(int i=0;i<tracks.length();i++){JSONObject asset=tracks.getJSONObject(i).getJSONObject("asset");if(seen.add(asset.getString("sha256"))&&!available(asset))total+=asset.getLong("bytes");}}return total;}catch(Exception e){return -1;}}
  void download(List<JSONObject> games,Progress progress)throws Exception {
   if(Thread.currentThread().isInterrupted())throw new InterruptedIOException("Загрузка остановлена");cancel=false;downloadSummary="";int count=0,incomplete=0;
+  queueDownloads(games);
   List<String> metadata=prepareOffline(progress);List<JSONObject> enriched=enrichGames(games);
   JSONArray allSeries;try{allSeries=series(false);}catch(Exception e){allSeries=new JSONArray();}
   Map<String,List<String>> seriesProblems=new HashMap<>();Map<String,List<File>> seriesFiles=new HashMap<>();
@@ -164,10 +166,10 @@ class Library {
    }
    JSONObject m=manifest(g,false);JSONArray ts=m.getJSONArray("tracks");
    for(int i=0;i<ts.length();i++){checkCancelled();JSONObject t=ts.getJSONObject(i),a=t.getJSONObject("asset");progress.update(g.getString("title")+" · "+(i+1)+"/"+ts.length());fetch(m,a);checkCancelled();progress.update("Проверяю длительность · "+g.getString("title")+" · "+(i+1));try{measureTrack(t);}catch(Exception e){checkCancelled();progress.update("Длительность не определена · "+g.getString("title")+": "+e.getMessage());}}
-   checkCancelled();markComplete(g,m);saveOfflineState(g,missing,required);if(!missing.isEmpty())incomplete++;count++;
-   progress.update("Сохранено коллекций: "+count+"/"+games.size()+(missing.isEmpty()?"":" · докачать офлайн: "+String.join("; ",missing)));
+   checkCancelled();markComplete(g,m);saveOfflineState(g,missing,required);completeRequest(g);if(!missing.isEmpty())incomplete++;count++;
+   progress.update("Сохранено коллекций: "+count+"/"+games.size()+(missing.isEmpty()?"":" · оформление: "+String.join("; ",missing)));
   }
-  downloadSummary=incomplete==0?"Музыка, постеры и каталоги сохранены для офлайна":"Музыка сохранена. Неполный офлайн-комплект: "+incomplete+" коллекций · нажмите «Докачать офлайн»";
+  downloadSummary=incomplete==0?"Музыка сохранена для прослушивания без сети":"Музыка сохранена. Недостающее оформление загрузится автоматически";
  }
  void checkCancelled()throws InterruptedIOException{if(cancel||Thread.currentThread().isInterrupted())throw new InterruptedIOException("Загрузка остановлена");}
  List<String> prepareOffline(Progress progress)throws Exception{
@@ -215,15 +217,36 @@ class Library {
  List<JSONObject> savedGames(){List<JSONObject> result=new ArrayList<>();File[] files=new File(root,"saved").listFiles();if(files!=null)for(File f:files)try{result.add(new JSONObject(new String(Files.readAllBytes(f.toPath()),java.nio.charset.StandardCharsets.UTF_8)));}catch(Exception ignored){}return result;}
  int[] localCounts(JSONObject g){try{JSONObject m=cachedManifest(g);if(m==null)return new int[]{0,0};JSONArray tracks=m.getJSONArray("tracks");int have=0;for(int i=0;i<tracks.length();i++)if(available(tracks.getJSONObject(i).getJSONObject("asset")))have++;return new int[]{have,tracks.length()};}catch(Exception e){return new int[]{0,0};}}
  boolean fullyLocal(JSONObject g){try{JSONObject m=localManifest(g);if(m==null||m.getJSONArray("tracks").length()==0)return false;for(int i=0;i<m.getJSONArray("tracks").length();i++)if(!available(m.getJSONArray("tracks").getJSONObject(i).getJSONObject("asset")))return false;return true;}catch(Exception e){return false;}}
- String downloadLabel(JSONObject g){int[] n=localCounts(g);if(n[1]>0&&n[0]==n[1])return subscribed(g)?offlineReady(g)?"Скачано":"Докачать офлайн":"Сохранить";if(subscribed(g))return "Есть обновления";if(n[0]>0)return "Докачать "+n[0]+"/"+n[1];return "Скачать";}
- String offlineProblem(JSONObject game){try{File f=stateFile("offline",game);if(!f.isFile())return subscribed(game)?"Музыка сохранена. Для полного офлайна докачайте оформление и каталоги.":"";JSONArray missing=new JSONObject(new String(Files.readAllBytes(f.toPath()),java.nio.charset.StandardCharsets.UTF_8)).getJSONArray("missing");List<String> lines=new ArrayList<>();for(int i=0;i<Math.min(3,missing.length());i++)lines.add(missing.getString(i));return String.join("\n",lines);}catch(Exception e){return "Офлайн-комплект требует проверки.";}}
+ boolean hasManifestUpdate(JSONObject game){try{File saved=stateFile("saved",game);if(!saved.isFile())return false;JSONObject previous=new JSONObject(new String(Files.readAllBytes(saved.toPath()),java.nio.charset.StandardCharsets.UTF_8));return !previous.optString("manifest").equals(game.optString("manifest"));}catch(Exception e){return false;}}
+ String downloadLabel(JSONObject g){if(pending(g)&&!paused(g))return "Ожидание";if(subscribed(g)&&hasManifestUpdate(g))return "Обновить";int[] n=localCounts(g);if(n[1]>0&&n[0]==n[1])return subscribed(g)?offlineReady(g)?"Скачано":paused(g)||artworkFailed(g)?"Повторить":"Ожидание":"Скачать";if(subscribed(g))return "Обновить";if(n[0]>0||pending(g))return "Повторить";return "Скачать";}
+ boolean artworkFailed(JSONObject game){try{File f=stateFile("offline",game);return f.isFile()&&new JSONObject(new String(Files.readAllBytes(f.toPath()),java.nio.charset.StandardCharsets.UTF_8)).getJSONArray("missing").length()>0;}catch(Exception e){return true;}}
+ String downloadStatus(JSONObject g){String action=downloadLabel(g);if(!pending(g)&&fullyLocal(g)&&!offlineReady(g))return paused(g)?"Музыка скачана · оформление приостановлено":artworkFailed(g)?"Музыка скачана · оформление повторим автоматически":networkAllowed()?"Музыка скачана · оформление загружается":"Музыка скачана · ожидает разрешённой сети";if(action.equals("Ожидание"))return networkAllowed()?"В очереди на загрузку":"Ожидает разрешённой сети";if(action.equals("Повторить"))return "Загрузка не завершена";if(action.equals("Обновить"))return "Скачано · есть обновления";return action.equals("Скачать")?"":action;}
+ String offlineProblem(JSONObject game){try{File f=stateFile("offline",game);if(!f.isFile())return subscribed(game)?"Недостающее оформление будет загружено автоматически.":"";JSONArray missing=new JSONObject(new String(Files.readAllBytes(f.toPath()),java.nio.charset.StandardCharsets.UTF_8)).getJSONArray("missing");List<String> lines=new ArrayList<>();for(int i=0;i<Math.min(3,missing.length());i++)lines.add(missing.getString(i));return String.join("\n",lines);}catch(Exception e){return "Не удалось проверить сохранённые данные.";}}
+ private static final Object REQUEST_LOCK=new Object();
+ boolean pending(JSONObject game){try{return stateFile("pending",game).isFile();}catch(Exception e){return false;}}
+ boolean paused(JSONObject game){return preferences.getStringSet("paused_downloads",Collections.emptySet()).contains(game.optString("id"));}
+ void queueDownloads(List<JSONObject> games)throws Exception{synchronized(REQUEST_LOCK){Set<String> paused=new HashSet<>(preferences.getStringSet("paused_downloads",Collections.emptySet()));for(JSONObject game:games){checkCancelled();File file=stateFile("pending",game);byte[] value=game.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8);if(!file.isFile()||!Arrays.equals(Files.readAllBytes(file.toPath()),value))atomic(file,value);paused.remove(game.getString("id"));}preferences.edit().putStringSet("paused_downloads",paused).apply();revision.incrementAndGet();}}
+ void completeRequest(JSONObject game)throws Exception{synchronized(REQUEST_LOCK){Files.deleteIfExists(stateFile("pending",game).toPath());}}
+ List<JSONObject> pendingGames(){List<JSONObject> result=new ArrayList<>();File[] files=new File(root,"pending").listFiles();if(files!=null)for(File file:files)try{JSONObject game=new JSONObject(new String(Files.readAllBytes(file.toPath()),java.nio.charset.StandardCharsets.UTF_8));if(!paused(game))result.add(game);}catch(Exception ignored){}return result;}
+ void pausePending(){cancel=true;cancelTransfers();synchronized(REQUEST_LOCK){Set<String> paused=new HashSet<>(preferences.getStringSet("paused_downloads",Collections.emptySet()));for(JSONObject game:pendingGames())paused.add(game.optString("id"));for(JSONObject game:savedGames())if(!offlineReady(game))paused.add(game.optString("id"));preferences.edit().putStringSet("paused_downloads",paused).apply();revision.incrementAndGet();}}
+ List<JSONObject> repairCandidates(){List<JSONObject> result=new ArrayList<>();for(JSONObject game:savedGames())if(!paused(game)&&!offlineReady(game))result.add(game);return result;}
+ boolean needsMaintenance(){return !pendingGames().isEmpty()||!repairCandidates().isEmpty();}
+ void resumeRequests(){preferences.edit().putStringSet("paused_downloads",Collections.emptySet()).apply();revision.incrementAndGet();}
+ void repairSaved(Progress progress)throws Exception{
+  List<JSONObject> games=repairCandidates();if(games.isEmpty())return;List<String> metadata=prepareOffline(progress);JSONArray allSeries;try{allSeries=series(false);}catch(Exception e){allSeries=new JSONArray();}
+  Set<String> checkedSeries=new HashSet<>();Map<String,List<String>> problemsBySeries=new HashMap<>();Map<String,List<File>> filesBySeries=new HashMap<>();
+  for(JSONObject game:games){checkCancelled();if(!fullyLocal(game)){queueDownloads(Collections.singletonList(game));continue;}List<String> missing=new ArrayList<>(metadata);List<File> required=new ArrayList<>();saveArtwork(game,false,progress,missing,required);
+   for(int i=0;i<allSeries.length();i++){JSONObject sr=allSeries.getJSONObject(i);if(seriesGames(sr,Collections.singletonList(game)).isEmpty())continue;String id=sr.getString("id");if(checkedSeries.add(id)){List<String> issues=new ArrayList<>();List<File> files=new ArrayList<>();saveArtwork(sr,true,progress,issues,files);problemsBySeries.put(id,issues);filesBySeries.put(id,files);}missing.addAll(problemsBySeries.get(id));required.addAll(filesBySeries.get(id));}
+   JSONObject manifest=localManifest(game);if(manifest!=null&&!snapshotFile(game).isFile())markComplete(game,manifest);saveOfflineState(game,missing,required);
+  }
+ }
  void trackSeries(String id){Set<String> ids=new HashSet<>(preferences.getStringSet("saved_series",Collections.emptySet()));ids.add(id);preferences.edit().putStringSet("saved_series",ids).apply();}
  void syncSaved(Progress progress)throws Exception {
   cancel=false;JSONObject cat=freshJson(BASE+"assets/gallery-music.json");List<JSONObject> all=new ArrayList<>();JSONArray rows=cat.getJSONArray("games");for(int i=0;i<rows.length();i++)all.add(rows.getJSONObject(i));
   Set<String> ids=new HashSet<>();for(JSONObject g:all)if(subscribed(g))ids.add(g.getString("id"));for(JSONObject g:savedGames())ids.add(g.getString("id"));
   JSONObject stats=freshJson(BASE+"assets/statistics.json");Set<String> seriesIds=preferences.getStringSet("saved_series",Collections.emptySet());
   if(!seriesIds.isEmpty()){JSONArray ss=stats.getJSONArray("series");for(int i=0;i<ss.length();i++){JSONObject sr=ss.getJSONObject(i);if(seriesIds.contains(sr.optString("id")))for(JSONObject g:seriesGames(sr,all))ids.add(g.getString("id"));}}
-  List<JSONObject> selected=new ArrayList<>();for(JSONObject g:all)if(preferences.getBoolean("follow_all_music",false)||ids.contains(g.getString("id"))){if(cancel||Thread.currentThread().isInterrupted())throw new InterruptedIOException();progress.update("Проверяю · "+g.optString("title"));String url=resolve(BASE,g.getString("manifest"));freshJson(url);selected.add(g);}
+  List<JSONObject> selected=new ArrayList<>();for(JSONObject g:all)if(!paused(g)&&(preferences.getBoolean("follow_all_music",false)||ids.contains(g.getString("id")))){if(cancel||Thread.currentThread().isInterrupted())throw new InterruptedIOException();progress.update("Проверяю · "+g.optString("title"));String url=resolve(BASE,g.getString("manifest"));freshJson(url);selected.add(g);}
   revision.incrementAndGet();download(selected,progress);
  }
 

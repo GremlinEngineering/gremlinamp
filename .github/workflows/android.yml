@@ -29,6 +29,7 @@ jobs:
           bash tools/test-similarity.sh
           bash tools/test-playback.sh
           bash tools/test-update.sh
+          bash tools/test-ui.sh
       - name: Build development APK
         env:
           GREMLINAMP_STOREPASS: android

@@ -28,7 +28,7 @@ The app is intended primarily for the site's listeners and game music enthusiast
 
 ## Install and start listening
 
-Requires **Android 8.0+**. Supports ARM64, ARMv7 and x86_64. Current version: **0.2.6**. The app interface is currently **Russian**.
+Requires **Android 8.0+**. Supports ARM64, ARMv7 and x86_64. Current version: **0.2.7**. The app interface is currently **Russian**.
 
 Application downloads are listed in the [site's media library](https://games.oopssre.ru/gremlin.html). You can also build the APK from source using the instructions below.
 
@@ -38,13 +38,13 @@ Application downloads are listed in the [site's media library](https://games.oop
 
 Playback includes a queue, shuffle, repeat, seeking, notification and headset controls. Tap an artwork thumbnail to open the poster with gesture zoom. Light, dark and system themes are available in settings. The resources and licenses screen includes a direct link to this GitHub repository.
 
-Use «Скачать всё» (Download all) to download all music from the site regardless of your filters. The confirmation shows the size of missing files. Duration controls can hide short tracks and separately show or hide tracks whose duration is unknown.
+Use «Скачать все мелодии» in the library menu to download the whole site regardless of filters. Whole-library and series downloads ask for confirmation; size is shown when cached manifests already provide it. Duration controls can hide short tracks and separately show or hide tracks whose duration is unknown.
 
 ## Downloads and updates
 
-Collections show whether they need downloading, are partial, are downloaded or have updates. Existing music files are reused. If playback has already cached a complete collection, «Сохранить» (Save) adds it to your downloaded library.
+Each collection has one available action: Download, Retry after an error, or Update when new music exists. Downloaded and waiting states are text. Interrupted requests persist and resume automatically, while an explicit pause stays in effect until the user requests a retry. Existing audio is reused.
 
-In Settings → Music updates and network, enable automatic updates hourly or daily after 07:00 Moscow time. Android may defer background checks. Choose Wi-Fi only or Wi-Fi and mobile data; this also controls downloading uncached tracks for playback. Downloaded files remain playable offline.
+In Settings → Network and automatic updates, enable automatic updates hourly or daily after 07:00 Moscow time. Android may defer background checks. Choose Wi-Fi only or Wi-Fi and mobile data; this also controls downloading uncached tracks for playback. Downloaded files remain playable offline.
 
 Follow selected series or the entire site library to include new games with music. Manage these subscriptions in the same settings screen. Automatic updates are off and Wi-Fi only is selected by default.
 
@@ -78,7 +78,7 @@ export GREMLINAMP_STOREPASS=android
 bash tools/build-sdk.sh
 ```
 
-Output: `build/GremlinAmp-0.2.6.apk`. Unless another key is supplied, the script creates a local development key at `build/development.keystore`. Never commit signing keys.
+Output: `build/GremlinAmp-0.2.7.apk`. Unless another key is supplied, the script creates a local development key at `build/development.keystore`. Never commit signing keys.
 
 For repeatable update signing, set `GREMLINAMP_KEYSTORE` to your private keystore and `GREMLINAMP_STOREPASS` to its password. The script uses the alias `gremlinamp`.
 
@@ -99,17 +99,19 @@ Music, game names, posters and other site materials retain their respective righ
 [Arcade](https://games.oopssre.ru/) · [Gremlin media library](https://games.oopssre.ru/gremlin.html) · [Laboratory](https://games.oopssre.ru/lab/) · [Imperial School Engineer](https://oopssre.ru/) · [Telegram](https://t.me/oopsSRE)
 
 
-App updates: Settings → Обновление приложения. Optional automatic APK download (hourly or daily after 07:00 Moscow), Wi-Fi or mobile data. Installation requires Android confirmation. APK size, SHA-256, package, version and signing certificate are checked.
+App updates are opened from the library menu. One action reflects the state: check, cancel an active download, or install a downloaded APK. Optional automatic APK download (hourly or daily after 07:00 Moscow), Wi-Fi or mobile data. Installation requires Android confirmation. APK size, SHA-256, package, version and signing certificate are checked.
 
-Audio continuation: “По ритму” and “По звучанию” use the site analysis index after the current queue finishes. Downloaded-only playback, filters and session history apply. The index is imported into a local database for offline use; a missing server index does not affect ordinary playback. Refresh it with the catalog or in queue settings.
+Audio continuation: “По ритму” and “По звучанию” use the site analysis index after the current queue finishes. Downloaded-only playback, filters and session history apply. The index is imported into a local database for offline use; a missing server index does not affect ordinary playback. Refresh it with the shared library update command.
 
 Unavailable audio modes are disabled with a reason before selection. Repeat-one and repeat-queue are mutually exclusive; continuation is suspended while repeat is active. Index refresh shows progress and prevents duplicate requests.
 
 VGM/VGZ YM2413 audio uses the bundled MIT-licensed emu2413 core through a local adapter. The decoder regression test generates its own YM2413-only VGM; run tools/test-ym2413.py against a host-built libgme shared library.
 
 
-Version 0.2.6 saves game and related-series artwork before music, matching cards by href and stable RA identity. “Докачать офлайн” means audio is saved but artwork or catalogs are incomplete; collection actions show the reason. Retrying reuses downloaded audio. A saved full poster can supply an offline thumbnail.
+Version 0.2.7 treats game and series artwork as part of saving a collection. Missing artwork for older saved music is filled automatically under the selected network policy without downloading audio again. Cards match by href and stable RA identity, and full saved posters can supply thumbnails. There are no separate offline, poster, or analysis-index commands.
 
 Interrupted updates preserve the last fully downloaded manifest in the Downloaded view. Startup displays the local catalog before refreshing it. The acoustic index is optional for ordinary playback; an already imported index works offline.
 
 Previous/Next follow actual playback history across shuffle and album boundaries. Continuations append to the queue. Missing files are skipped with a bounded retry count, and ending the queue releases the audio transport. Artwork retrieval and duration measurement do not delay downloaded audio.
+
+The main screen keeps playback, library sections, search and one filter. Whole-library download and shared refresh are in the menu; network and automatic updates are in settings. Tapping artwork opens it. Back restores the prior series or Downloaded view and its search. Catalog updates preserve the active screen.
