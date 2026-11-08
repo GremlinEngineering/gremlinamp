@@ -127,4 +127,4 @@ The main screen keeps playback, library sections, search and one filter. Whole-l
 
 ### Music API v1
 
-Game and series data come from `/music/game-index.json`. Full-library downloads use `/music/library.json` to verify the size and SHA-256 of the ZIP before atomically switching the offline library. The downloaded library remains available if an update fails. The library menu provides a separate action for removing audio cached by older clients.
+Game and series data come from `/music/game-index.json`. Full-library downloads use `/music/library.json`. When the receipt lists a new ZIP, the app removes the old extracted library before downloading it, verifies the size and SHA-256, then extracts and activates the new library. Retry the download if the update fails. The library menu has a separate action to clear the full offline library, individually downloaded games, their covers and pending downloads, including audio cached by older clients.

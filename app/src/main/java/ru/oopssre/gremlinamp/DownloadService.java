@@ -26,14 +26,14 @@ public class DownloadService extends Service {
      library.preferences.edit().putBoolean("follow_all_music",true).putBoolean("archive_paused",false).apply();
      MusicSyncJob.result(library,library.downloadSummary,true);
     }
-    else if(sync){library.resumeRequests();library.syncSaved(report);SimilarityStore.refresh(library);MusicSyncJob.result(library,library.downloadSummary,true);}
+    else if(sync){library.resumeRequests();library.syncSaved(report,true);SimilarityStore.refresh(library);MusicSyncJob.result(library,library.downloadSummary,true);}
     else {JSONArray a=new JSONArray(payload);List<JSONObject> games=new ArrayList<>();for(int k=0;k<a.length();k++)games.add(a.getJSONObject(k));library.download(games,report);report.update("Проверяю индекс похожей музыки…");SimilarityStore.refresh(library);}
     progress=library.downloadSummary;
    }
-   catch(Exception e){if(sync||archive)MusicSyncJob.result(library,"Обновление отложено: "+e.getMessage(),false);progress=library.cancel||Thread.currentThread().isInterrupted()?"Загрузка приостановлена":archive?"ZIP не обновлён · "+e.getMessage():library.networkAllowed()?"Загрузка продолжится автоматически: "+e.getMessage():"Ожидание разрешённой сети · загрузка продолжится автоматически";}
+   catch(Exception e){if(sync||archive)MusicSyncJob.result(library,"Обновление отложено: "+e.getMessage(),false);progress=library.cancel||Thread.currentThread().isInterrupted()?"Загрузка приостановлена":(archive||sync&&library.archive.hasDownload())?"ZIP не обновлён · "+e.getMessage():library.networkAllowed()?"Загрузка продолжится автоматически: "+e.getMessage():"Ожидание разрешённой сети · загрузка продолжится автоматически";}
    finally{Library.revision.incrementAndGet();if(locked)Library.DOWNLOAD_LOCK.unlock();if(wake.isHeld())wake.release();LibraryMaintenanceJob.schedule(this);stopForeground(STOP_FOREGROUND_REMOVE);stopSelf();}
   });return START_NOT_STICKY;
  }
  public void onTimeout(int startId,int fgsType){library.cancel=true;stopSelf();}
- public void onDestroy(){library.cancel=true;io.shutdownNow();instance=null;super.onDestroy();}
+ public void onDestroy(){library.cancel=true;library.cancelTransfers();io.shutdownNow();instance=null;super.onDestroy();}
 }
