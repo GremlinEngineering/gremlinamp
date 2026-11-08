@@ -1,0 +1,1 @@
+The earlier ADDITIONAL_CODECS_SOURCE.zip contents are preserved without modification in the independent Gremlin_Music_Player_Codecs_0.4_Source_*.zip parts. Extract all source parts alongside this runtime to obtain vendor/additional-codecs-source/. Existing source notices and all license files remain. No source archive is required for runtime playback.

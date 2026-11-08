@@ -1,0 +1,16 @@
+{
+  "core": "Original Beetle WonderSwan / Mednafen Cygne",
+  "commit": "4b01295838ea89e3f1355bbe4cb5cf98aa6108cd",
+  "core_changes": false,
+  "default_options": true,
+  "outputs": {
+    "gremlin-ws.js": {
+      "bytes": 11306,
+      "sha256": "f4b53c0c01ca35ac3f7083dedd8424e9ed1645f68188dc92480a6415663f0382"
+    },
+    "gremlin-ws.wasm": {
+      "bytes": 187017,
+      "sha256": "21cf20b53b28122d2511cbe6e80c32b7e1227c45e83297b7ed9cf61922063837"
+    }
+  }
+}

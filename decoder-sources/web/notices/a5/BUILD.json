@@ -1,0 +1,17 @@
+{
+  "core": "libretro/a5200",
+  "commit": "40c6f2f1ad4a3145b328d5baaf010fae6c7e752b",
+  "original_core_source_unchanged": true,
+  "floating_point_contraction": "off for both architectures",
+  "C_library_rand_adapter": "Park-Miller seed1, matching native reference; original quarter-LSB dither retained",
+  "outputs": {
+    "gremlin-a5.js": {
+      "bytes": 60346,
+      "sha256": "09b0a2e4d8c9b33a5fcf6954e3fdbff3773f899e760ef9eb432d13a48e8ed5cb"
+    },
+    "gremlin-a5.wasm": {
+      "bytes": 174561,
+      "sha256": "d362591f065eee87c75b738c4c192193866948577927aebb07b514518e954540"
+    }
+  }
+}

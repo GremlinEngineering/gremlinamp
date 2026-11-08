@@ -1,0 +1,21 @@
+{
+  "player_version": "0.12",
+  "compiler": "Emscripten 6.0.13",
+  "profiles": [
+    "namco_wsg_3",
+    "namco_15xx_8",
+    "namco_cus30_mono"
+  ],
+  "files": [
+    {
+      "file": "namco-wsg.js",
+      "bytes": 8375,
+      "sha256": "73486eb010455e3fdfd89ca8f4a45b4bf272b070ae7c6fbe4119778c651fa5c2"
+    },
+    {
+      "file": "namco-wsg.wasm",
+      "bytes": 23532,
+      "sha256": "470379383ac374037a6f1bdf73062d54b96a130bbada157658af29fee0567bb3"
+    }
+  ]
+}

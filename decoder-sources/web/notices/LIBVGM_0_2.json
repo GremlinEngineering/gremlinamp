@@ -1,0 +1,34 @@
+{
+  "version": "0.2",
+  "date": "2026-11-03",
+  "libvgm": {
+    "compiler": "Emscripten 6.0.13",
+    "libvgm_commit": "61b62d64455e039de2a1d01498afa9e9b5f1cb88",
+    "all_upstream_sound_devices": true,
+    "pcm": "unclipped stereo Float32",
+    "files": [
+      {
+        "path": "gremlin-libvgm.js",
+        "bytes": 8373,
+        "sha256": "18a455fcf20726777a3595691f970d7a296660018825905f36c082eebe33057b"
+      },
+      {
+        "path": "gremlin-libvgm.wasm",
+        "bytes": 804830,
+        "sha256": "152da8abf58344399344a2eea23c4c99094198350c6deed19289ecd87f8038b8"
+      }
+    ]
+  },
+  "upstream_source_receipt": {
+    "repository": "ValleyBell/libvgm",
+    "commit": "61b62d64455e039de2a1d01498afa9e9b5f1cb88",
+    "archive_url": "https://codeload.github.com/ValleyBell/libvgm/tar.gz/61b62d64455e039de2a1d01498afa9e9b5f1cb88",
+    "bytes": 1548809,
+    "sha256": "a2803c9a9fc109fb57dd3491b9e85b8fb692684d3eff498ccaf87cd3ba518a71",
+    "source_dir": "/workspace/scratch/1e880b95e027/music_collection_full_0_2/runtime/libvgm-006/libvgm-61b62d64455e039de2a1d01498afa9e9b5f1cb88"
+  },
+  "source_archive_sha256": "d80b0777896b1e1843535bc6bd81d31994ba82b1037dfb9abf3a7bfceefe30e7",
+  "scope": "VGM/VGZ route rebuilt from pinned upstream; other decoder binaries preserved byte for byte",
+  "production_installed": false,
+  "site_builder_modified": false
+}

@@ -1,0 +1,18 @@
+{
+  "pass": true,
+  "rebuild_from_delivered_corresponding_source": true,
+  "files": [
+    {
+      "file": "gremlin-ws-headroom.js",
+      "rebuilt_sha256": "0f04534ef92fc9b459312310c4ecc4e261aceedd8288fb82f6022a8e35102f83",
+      "production_sha256": "0f04534ef92fc9b459312310c4ecc4e261aceedd8288fb82f6022a8e35102f83",
+      "exact": true
+    },
+    {
+      "file": "gremlin-ws-headroom.wasm",
+      "rebuilt_sha256": "6138f5161dd0a024b973355686befb6cc974178d472bee0f17a1f7552747b9ee",
+      "production_sha256": "6138f5161dd0a024b973355686befb6cc974178d472bee0f17a1f7552747b9ee",
+      "exact": true
+    }
+  ]
+}

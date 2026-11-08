@@ -1,0 +1,30 @@
+{
+  "compiler": "Emscripten 4.0.10",
+  "libvgm_commit": "61b62d64455e039de2a1d01498afa9e9b5f1cb88",
+  "all_upstream_sound_devices": true,
+  "pcm": "unclipped stereo Float32",
+  "files": [
+    {
+      "path": "gremlin-libvgm.js",
+      "bytes": 10660,
+      "sha256": "f4b29555d8b26fd9c0562d367c2fc9d29063305036d7375c62e113fc95a31d73"
+    },
+    {
+      "path": "gremlin-libvgm.wasm",
+      "bytes": 803190,
+      "sha256": "73d7c140c3a4fd4a25af1b1d423bc9798f8e557ee719bde4638419fc731c0d30"
+    }
+  ],
+  "release": "0.8",
+  "formats": [
+    "vgm",
+    "vgz",
+    "s98_v3"
+  ],
+  "physical_ay_clock_hz": 1500000,
+  "s98_ay_header_clock_hz": 3000000,
+  "s98_multiple_instances_tested": [
+    1,
+    3
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "core": "mGBA0.10.3",
+  "commit": "1c61b54208ca6266129d0f2394c04bd8c44f98c5",
+  "core_changes": false,
+  "source": "Original full GBA CPU/audio Libretro target, default options, HLE BIOS, no external BIOS",
+  "source_object_files": 87,
+  "outputs": {
+    "gremlin-gba.js": {
+      "bytes": 61880,
+      "sha256": "93620a9c5e0e5f649556283e2e9f49488380ba99c153a6491bd5f0b83beb7791"
+    },
+    "gremlin-gba.wasm": {
+      "bytes": 662699,
+      "sha256": "7300d34c84714868ccfa0cb5c8dd306f86a4aeeb9f811945724a0a56bc01c5ac"
+    }
+  }
+}

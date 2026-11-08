@@ -1,0 +1,5 @@
+VirtualJaguar3.11.0 original GPL3 core, pin34696082dbc0448caf23aa4ecb5ed40817cb8da0.
+All original source/build inputs are in JAGUAR_082_SOURCE.zip with original notices.
+Frontend/container transport Gremlin082 is GPL3-or-later. Original hardware/game/DSP code unchanged.
+Rebuild decoder:python3 rebuild.py --emsdk /absolute/path/to/emsdk [--em-config FILE].
+Research-only referencePCM files are excluded. ROM/music copyrights remain with original owners.

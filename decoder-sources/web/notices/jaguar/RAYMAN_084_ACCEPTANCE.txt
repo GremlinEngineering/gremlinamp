@@ -1,0 +1,4 @@
+Raymanprofile2 acceptedin084 after4full source/native-browser comparisons,8profileguardsand12playercontrols.
+DriverJS/Wasm/workerandcorrespondingsourceZIPunchangedfrom083.
+The originalFORMAT/sourceBUILDresearchflag describes build-time state; currentacceptanceisverification/rayman084/RAYMAN_SOURCE_PROOF.json.
+The sourceZIP independentlyrebuilttoidenticalJS/Wasm; receiptverification/jaguar082/source-rebuild-result.json.

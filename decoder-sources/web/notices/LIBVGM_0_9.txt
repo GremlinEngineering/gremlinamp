@@ -1,0 +1,1 @@
+Gremlin prepared codecs0.9. libvgm61b62d64455e039de2a1d01498afa9e9b5f1cb88, inherited K007232 fixes from0.6. Added original YM3014 ROM playback in documented TMC1 container; exact source/build instructions inLIBVGM_0_9_SOURCE.zip. Emscripten4.0.10. All original source licenses retained. Site not published.

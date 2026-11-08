@@ -1,0 +1,20 @@
+{
+  "player": "0.13",
+  "compiler": "Emscripten6.0.13",
+  "source_commit": "bc55d462f0b2d6b073ea93dc552ebd73cec60fd1",
+  "format": "LSM1/LSZ, cartridge-independent original Lynx sound-driver machine states",
+  "source_rate": 48000,
+  "output": "StereoFloat32 from original Handy16-bit PCM, deterministic rational linear conversion for other rates",
+  "files": [
+    {
+      "name": "gremlin-lsm.js",
+      "bytes": 9288,
+      "sha256": "add5f23a187ac112048c0783ea417c2365d482c2a161190312833dedbc905100"
+    },
+    {
+      "name": "gremlin-lsm.wasm",
+      "bytes": 173241,
+      "sha256": "95ed17dfaf5939f03876288b8f012afd8fbd1fc392e63133cf7c614288360f0b"
+    }
+  ]
+}

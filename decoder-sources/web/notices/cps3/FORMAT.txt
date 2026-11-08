@@ -1,0 +1,39 @@
+C3M1 / C3Z — original CPS3 music register capture, version1
+
+C3Z is gzip of C3M1, not compressed rendered audio. Original instrument PCM
+bytes stored in cartridge/SIMM ROM are retained unchanged. Runtime executes
+original MAME CPS3 PCM methods from pin40d0f1125befade5edc08ec5699442ca3a229c01.
+No SH2/game code runs in browser. Source sequence executed by unchanged game
+CPU in FBNeo; observer records original PCM word writes and source cycle time.
+Clock14318181Hz; internal37286Hz; source CPU timebase25000000Hz.
+Original MAME stream1 maps left, stream0 right. Linear output resampling.
+
+All integers little endian. Header128bytes:
+0 magic C3M followed by byte1a
+4 version1;8 profile1;12 chipclock;16 internalrate;20 sourceclock
+24 logical original bank size (multiple4096, <=128MiB)
+28 stored4KiBpagecount1..4096;32 eventcount1..1000000
+36 snapshotbytes512;40 source chip-clock phase;44 duration internal samples
+48 headerbytes128;52 page tableoffset640;56 page dataoffset
+60 eventsoffset;64 totalbytes<=24000000
+68 CRC32snapshot;72 CRC32page table;76 CRC32page data;80 CRC32events
+84 reservedzero;88 u64absolute originCPUcycle;96 u64enddeltaCPUcycles
+104..127 reservedzero.
+Then original voice register snapshot128u32; sortedu32page indices;
+4096 original unmodified bytes per stored page; then16byte events:
+u64relativeCPUcycle,u16original even wordaddress0..0x200,u16value,u32zero.
+No key-on at snapshot origin: origin is independently verified all-key-off
+boundary in full source trace. Original registers and sample phase retained.
+Original future key-on edges reset voice pos/frac. Source phase equals
+(origin*37286)%25000000. Apply ordered writes at floor((delta*37286+phase)/25M).
+Only writes leaving original register/key value unchanged may be omitted;
+full original trace versus compact container compared over every output sample.
+Original sample pages omitted only after full-bank-versus-sparse exact check.
+Missing/out-of-range ROM access stops rendering with error; no invented data.
+
+Output8..192kHz, subsong0; finite selected duration and clean zero tail.
+Worker gzip expansion<=24MB, render request<=16384frames. Files describe
+selected original musical windows; not whole historical albums. Code01 ends
+naturally after all-key-off+250ms; code02 uses60s+3s playerfade;10/11 use captured
+214.851s windows with final3s playerfade. Historical MP3 waveform/length, stock
+FBNeo-versus-MAME audio identity and physical-board measurement not claimed.

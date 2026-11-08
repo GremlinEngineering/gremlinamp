@@ -1,0 +1,21 @@
+{
+  "MAME_commit": "40d0f1125befade5edc08ec5699442ca3a229c01",
+  "core": "Original MAME K005289 voice counters and512byte waveform PROM; explicit host clock averaging",
+  "source_rate": 48000,
+  "original_circuit_values": true,
+  "hand_written_note_tables": false,
+  "files": {
+    "libgremlin-k0.dylib": {
+      "bytes": 36000,
+      "sha256": "44fdd669dced2491c5b91763578a7a5b2b3701fc1509f3cdd1e32ca22b962eb5"
+    },
+    "gremlin-k0.wasm": {
+      "bytes": 15166,
+      "sha256": "83ec2f1eacf27032f330c6aa3246fb1c75c8804d8b6c59b3a8080c3ed030a12c"
+    },
+    "gremlin-k0.js": {
+      "bytes": 7817,
+      "sha256": "1dc1dfd1eba4921a83c0ed64205da2e9170983544220fc0f41e7167e835cfde3"
+    }
+  }
+}

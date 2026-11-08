@@ -1,0 +1,53 @@
+{
+  "version": "0.10",
+  "component": "gme-plus",
+  "formats": [
+    "nsf",
+    "nsfe",
+    "sgc",
+    "gbs"
+  ],
+  "sources": [
+    {
+      "name": "gme",
+      "repo": "kode54/Game_Music_Emu",
+      "commit": "fd803c826219d7052692aea09ab37d2229b23fb3",
+      "url": "https://api.github.com/repos/kode54/Game_Music_Emu/tarball/fd803c826219d7052692aea09ab37d2229b23fb3",
+      "sha256": "65d5f60d2a0b9ae3d23474818eb06b20173369ccdff7bc8ca4d4970d76a01b34",
+      "bytes": 488821
+    },
+    {
+      "name": "file-extractor",
+      "repo": "kode54/File_Extractor",
+      "commit": "a2733b21322075c96b33df9193c093a01fc81fe0",
+      "url": "https://api.github.com/repos/kode54/File_Extractor/tarball/a2733b21322075c96b33df9193c093a01fc81fe0",
+      "sha256": "8b1a1932d0ee94fafaa4fd4c0310eba273e5bb286b7f43ac62ac0328ed51034e",
+      "bytes": 212091
+    }
+  ],
+  "compiler": "Emscripten4.0.10",
+  "type_list": [
+    "NSF",
+    "NSFE",
+    "SGC",
+    "GBS"
+  ],
+  "upstream_sources_modified": true,
+  "upstream_patch": "Sgc_Impl.cpp: index seven RST vectors from rst_addrs[(i-1)*2] instead of reading beyond the header array; no music input data altered.",
+  "files": [
+    {
+      "path": "gme-plus.js",
+      "bytes": 9387,
+      "sha256": "e8138d2fe3bd3165f611a4b680fa083d2078eb62a14590bd9d6be42aa83a4487"
+    },
+    {
+      "path": "gme-plus.wasm",
+      "bytes": 145073,
+      "sha256": "17dfdd11095c0119679dca433a7a8fdfd525181c57959cb55dad5176b9e0df0a"
+    }
+  ],
+  "production_deployed": false,
+  "gbs_synthesis_gain": 0.5,
+  "gbs_cpu": "Upstream pinned Gb_Cpu_run.h includes CP A (BF), unlike baseline0.6.3.",
+  "source_changes_this_release": "Enable already pinned upstream GBS core; add GBS gain0.5 in existing bridge. Previous SGC RST fix unchanged."
+}

@@ -1,0 +1,36 @@
+DKM1, original Nintendo MB8884 music container, version1.
+Header128bytes. Magic44 4b 4d 1a. Little-endian uint32 fields from offset4:
+version1, profile1DK/2DKJR, crystal6000000, machinecycles400000, graph48000,
+program4096, externaldata2048/0, eventcount, eventoffset, hiddenpreroll_samples,
+duration_samples, reserved0, totalbytes, programCRC32, dataCRC32, eventsCRC32.
+Bytes68..127 zero. Program then externaldata then8byte events:
+machinecycle32, original main-bus address16, value8, reserved0.
+
+Maximum65536events,120s hidden preroll,600s output. Only pinned originalROM
+CRC profiles accepted; manifests have SHA256 and provenance has ROMSHA1/SHA256.
+Program/data are unmodified original sound firmware/tables, not full game
+graphics or rendered songs. Events are original game writes observed at actual
+MCU instruction boundaries. P1 feeds DAC, P2bit7 the original discharge circuit.
+Each graph sample advances at floor(cycle*48000/400000) before the pin change.
+
+All28 used mathematical node classes and both complete component graphs are
+pinned original MAME excerpts, including the original custom DK mixer.
+DAC stream transport and scheduling are standalone glue; music-only effects
+inputs held at reset. VR2=90, original route gainsDK0.9/DKJR0.5.
+Linear rational resampling to8–192kHz; output is zero after bounded duration.
+Pinned CPU EA/IRQ implementation limitations retained. No analog-board
+measurement, full game sound effects, or oldMP3 waveform equivalence claimed.
+
+Runtime licenseBSD-3-Clause; source notices retained. Research full-game
+FBNeo observer has its own license and is not linked into this browser core.
+Source/native equivalence uses original whole-game MCU port traces and original
+MAME mathematical methods. It is not a physical-hardware recording comparison.
+
+Native build from attached source:
+clang++ -std=c++20 -O2 -fwrapv -ffp-contract=off -fvisibility=hidden -dynamiclib source/dkong_core.cpp -o libgremlin-dkong.dylib
+Wasm build uses Emscripten6.0.13, C++20, -O3 -fwrapv -ffp-contract=off
+-fwasm-exceptions, MODULARIZE=1, EXPORT_NAME=GremlinDkongMusic, FILESYSTEM=0;
+all exports and memory bounds are listed in verification-and-build/build_wasm.py.
+Adjust SDK/path variables for the local environment. Original ROMs are inside
+the delivered DKM files; their program/data offsets are defined above.
+

@@ -1,0 +1,18 @@
+{
+  "pass": true,
+  "built_from_delivered_source_capsule": true,
+  "files": [
+    {
+      "file": "gremlin-nf.js",
+      "standalone_source_rebuild_SHA256": "ac17c81486db9fc7288a2f8a27b592c693916c88249a4ffc0110b14c7fd51f81",
+      "production_SHA256": "ac17c81486db9fc7288a2f8a27b592c693916c88249a4ffc0110b14c7fd51f81",
+      "exact": true
+    },
+    {
+      "file": "gremlin-nf.wasm",
+      "standalone_source_rebuild_SHA256": "e88655bd872b051f62df167afd3f3a49f919f5cd560bf78f9f38cfa7d4076d6c",
+      "production_SHA256": "e88655bd872b051f62df167afd3f3a49f919f5cd560bf78f9f38cfa7d4076d6c",
+      "exact": true
+    }
+  ]
+}

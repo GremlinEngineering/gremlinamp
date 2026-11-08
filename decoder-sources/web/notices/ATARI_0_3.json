@@ -1,0 +1,165 @@
+{
+  "version": "0.3",
+  "new_components": {
+    "compiler": "Emscripten 6.0.13",
+    "cores": [
+      {
+        "name": "tia",
+        "upstream": {
+          "name": "tia",
+          "repository": "https://github.com/warmenhoven/tia",
+          "commit": "6ae5bf998fe7a7842294089db17fc86fd73db1f0",
+          "archive_url": "https://codeload.github.com/warmenhoven/tia/tar.gz/6ae5bf998fe7a7842294089db17fc86fd73db1f0",
+          "bytes": 343009,
+          "sha256": "734dd3167f48dd011763643401bef46cb6f1c930883ac6bd67933b8983331f12"
+        },
+        "files": [
+          {
+            "path": "gremlin-tia.js",
+            "bytes": 7822,
+            "sha256": "17c1a99638b381bd427987cfd3820de4d93468c1a378b28bc669d03cfdb0fd09"
+          },
+          {
+            "path": "gremlin-tia.wasm",
+            "bytes": 101518,
+            "sha256": "a3a70edf7d33df8cc29f5266d986e2e9589866f5019adbbd9f6247b7fa0e4e70"
+          }
+        ]
+      },
+      {
+        "name": "prosystem",
+        "upstream": {
+          "name": "prosystem",
+          "repository": "https://github.com/libretro/prosystem-libretro",
+          "commit": "8a88014287c7a01cd568067e5a557d0a2b2a051f",
+          "archive_url": "https://codeload.github.com/libretro/prosystem-libretro/tar.gz/8a88014287c7a01cd568067e5a557d0a2b2a051f",
+          "bytes": 180994,
+          "sha256": "23401c8b104ef24db111bbc4b13e37f224ffe16febfb89c704c70cdb269603bc"
+        },
+        "files": [
+          {
+            "path": "gremlin-prosystem.js",
+            "bytes": 8280,
+            "sha256": "4cd820bc82e9122a14739181e9155ef304b0caf33cf2e8f193bebc5999d30686"
+          },
+          {
+            "path": "gremlin-prosystem.wasm",
+            "bytes": 79503,
+            "sha256": "db23bd633ccc36da18bfd8144f287f8a816bc9c78d136d91a9fc2b3a07ed8779"
+          }
+        ]
+      }
+    ],
+    "bridge_license": "GPL-2.0-or-later",
+    "pcm": "stereo Float32; linear native-rate conversion",
+    "bios_bundled": false
+  },
+  "complete_corresponding_source": "ATARI_0_3_SOURCE.zip",
+  "source_sha256": "4a2a6e0111ad80737b38c25582b3a7c3d343c1cf89d4172184845379f577cc9c",
+  "previous_components_unchanged": [
+    {
+      "file": "pcm-worklet.js",
+      "sha256": "73a9ee108b6fb8ee90ea0eb4b936e7f044b66c8154a57ebd60ef3deb77cfb31c"
+    },
+    {
+      "file": "transport.js",
+      "sha256": "fab1aa4df497ba7bf08f509d161f87ca8f61aec16ee5bedb2beccd4a1715ff64"
+    },
+    {
+      "file": "gme-worker.js",
+      "sha256": "67da696adb68acd8490b573d759caf01c0309b45e3179eb576f3ee402e771b39"
+    },
+    {
+      "file": "codec-worker.js",
+      "sha256": "33e6a187fc6993136dced949089b2583a097a69fa9ca7f458771990ab592cb45"
+    },
+    {
+      "file": "libvgm-worker.js",
+      "sha256": "9bfcd3af27424cb59bb6a64ea468ca6e712e31925bf96b6e2bf25874775932f2"
+    },
+    {
+      "file": "vendor/libgme.js",
+      "sha256": "23b4cf18b33c2129b5ed6dd5a2794c7b8d62dccad9c587f4e99c0c6f71cac4ff"
+    },
+    {
+      "file": "vendor/LGPL-2.1.txt",
+      "sha256": "d2efc89fbb7533572a472d34e07964951810a3a4f8d3159ecc2dcaa1452c5c26"
+    },
+    {
+      "file": "vendor/LIBVGM_0_2_SOURCE.zip",
+      "sha256": "d80b0777896b1e1843535bc6bd81d31994ba82b1037dfb9abf3a7bfceefe30e7"
+    },
+    {
+      "file": "vendor/ADDITIONAL_CODECS.json",
+      "sha256": "3dad5dc76c30701334a8eb061572c47cfd6265a9878f4c3fc538f4c71aec33bc"
+    },
+    {
+      "file": "vendor/PROVENANCE.json",
+      "sha256": "1d78606ef2028defd15d9a624ac9c3b6e4c36efa49b12200fb58d0bdbaf2ab1b"
+    },
+    {
+      "file": "vendor/LIBVGM_0_2.json",
+      "sha256": "d962a37fcddfc2b5b9300fb42dcd9656c5b7aa3dfa57b00c4fb3f6a7f48d7ca8"
+    },
+    {
+      "file": "vendor/ADDITIONAL_CODECS.txt",
+      "sha256": "7ebc1b1e2c9d67127b0751c0711f0c7562c68ba54815e03c4c3ab74dff4ba6de"
+    },
+    {
+      "file": "vendor/ADDITIONAL_CODECS_SOURCE.zip",
+      "sha256": "454b7aa5cf285203230a6413b2f3ed3beb04b3c26aaf89c63d4164c8974808a5"
+    },
+    {
+      "file": "vendor/LIBVGM_0_2.txt",
+      "sha256": "d70b0f88a4680ace9b420b4498b575d8d4fa879819e5513595f112eaa26413ce"
+    },
+    {
+      "file": "vendor/libgme.wasm",
+      "sha256": "dd46c3843e4f2ac39ed0ce1d630f3d5a3c9c73d6af742083ecc7fbd9f37503fd"
+    },
+    {
+      "file": "vendor/source.zip",
+      "sha256": "69defdf3224c6f60df6f92a68b1d88294f6cc1c33f20a5a58baf254200d55604"
+    },
+    {
+      "file": "vendor/gsf/gsf2wav.wasm",
+      "sha256": "b50a7cacf676990ce5bf5b31b81a6c3d38a5835e5c19a1f8443dfe252276a400"
+    },
+    {
+      "file": "vendor/gsf/gsf2wav.js",
+      "sha256": "0cfb6023c225cdff9d3c46c0a8e20bfff0fae75920dcf11e1a170c4cbc0c2082"
+    },
+    {
+      "file": "vendor/broad/vgmplay-js.js",
+      "sha256": "02043d1800bf951b893dfe103062bcd069c2d86230c0be6f7d159fe2943a9d4a"
+    },
+    {
+      "file": "vendor/broad/vgmplay-js.wasm",
+      "sha256": "8dcdae772957eb60aa8545df36413abe6e940f60a7f89866e76d9bf698d7da5e"
+    },
+    {
+      "file": "vendor/broad/vgmplay-js.data",
+      "sha256": "ae269d34f45f378497374c2bda64f07c43832cb1158aa70a76242a535243d688"
+    },
+    {
+      "file": "vendor/libvgm/gremlin-libvgm.js",
+      "sha256": "18a455fcf20726777a3595691f970d7a296660018825905f36c082eebe33057b"
+    },
+    {
+      "file": "vendor/libvgm/gremlin-libvgm.wasm",
+      "sha256": "152da8abf58344399344a2eea23c4c99094198350c6deed19289ecd87f8038b8"
+    },
+    {
+      "file": "vendor/libvgm/BUILD.json",
+      "sha256": "f51c20dcd6df79693d9134f79157078eb24d1362aca39c91d9e4d66129dca41a"
+    }
+  ],
+  "production_installed": false,
+  "site_builder_modified": false,
+  "supported_music_containers": [
+    "a26",
+    "a78"
+  ],
+  "raw_bin_policy": "Keep original .bin bytes and filename, declare asset.format as a26 or a78 based on verified platform. Do not guess from .bin extension.",
+  "limit": "Plays self-starting musical ROM programs, not arbitrary game soundtrack subsongs or MP3-to-ROM recovery. A separate verified music rip/program is required for each musical selection."
+}

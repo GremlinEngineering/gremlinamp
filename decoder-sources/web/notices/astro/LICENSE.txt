@@ -1,0 +1,1 @@
+Combined standalone decoder GPL-2.0-or-later (Mednafen SHA256). Original MAME Astrocade chip algorithms BSD-3-Clause, notices retained. Full corresponding source/buildscripts: ../ASTROCADE_ACM_0_18_SOURCE.zip. FBNeo is research-only and not linked into browserdecoder.

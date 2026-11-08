@@ -1,0 +1,16 @@
+{
+  "core": "Original Potator Supervision fullCPU/sound",
+  "commit": "227c5f6f3ce74d32e9002ce24c1420288559a860",
+  "core_changes": false,
+  "default_options": true,
+  "outputs": {
+    "gremlin-sv.js": {
+      "bytes": 8233,
+      "sha256": "527c33ce6bbb11d6823bd85b1b07e7453719c392e0d302bace7d5b63fc4e7e89"
+    },
+    "gremlin-sv.wasm": {
+      "bytes": 43644,
+      "sha256": "db3ba87af74c5a5e32c45a26d27bcf04d34a8145cf171830424422bd0d3e7b5e"
+    }
+  }
+}

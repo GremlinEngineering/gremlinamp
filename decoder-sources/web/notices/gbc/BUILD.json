@@ -1,0 +1,17 @@
+{
+  "source_pin": "77f2567d718b8973d02caa2daa8dce4953faf811",
+  "core_sources_changed": false,
+  "frontend": "gb_host.c, standard original core options, 32768Hz blipper output, original inputs only",
+  "files": [
+    {
+      "name": "gremlin-gbc.wasm",
+      "bytes": 556917,
+      "sha256": "beeb97e42a7ad4feded4ac66be9e5b549059191f87b70ccb676a86aaad64a9c6"
+    },
+    {
+      "name": "gremlin-gbc.js",
+      "bytes": 58514,
+      "sha256": "b9229b374c4aa1ae6b2561fee55ef197a9e929e6a574f38d83c2282dae26ee6c"
+    }
+  ]
+}
