@@ -140,15 +140,25 @@ final class MusicArchive {
             File active = active();
             if (active != null && active.getName().equals(receipt.sha)) {
                 clean(receipt.sha);
+                library.preferences.edit().putBoolean("archive_update_pending", false).apply();
                 library.downloadSummary = "Офлайн-библиотека уже актуальна";
                 return;
             }
+            if (attempt == 0) {
+                if (!library.preferences.edit().putBoolean("archive_update_pending", true).commit())
+                    throw new IOException("Не удалось сохранить состояние загрузки ZIP");
+                library.checkCancelled();
+                if (active != null) progress.update("Удаляю прежнюю офлайн-библиотеку…");
+                clear();
+            }
+            library.checkCancelled();
             File zip = File.createTempFile("download-", ".zip", root);
             try {
                 library.transferArchive(receipt, zip, progress);
                 if (zip.length() != receipt.bytes || !Library.hashFile(zip, library).equals(receipt.sha)) throw new Integrity();
                 progress.update("Распаковываю библиотеку…");
                 install(zip, receipt.sha);
+                library.preferences.edit().putBoolean("archive_update_pending", false).apply();
                 library.downloadSummary = "Офлайн-библиотека обновлена";
                 Library.revision.incrementAndGet();
                 return;
@@ -159,6 +169,22 @@ final class MusicArchive {
                 Files.deleteIfExists(zip.toPath());
             }
         }
+    }
+
+    boolean hasDownload() {
+        return active() != null || library.preferences.getBoolean("archive_update_pending", false);
+    }
+
+    void clear() throws IOException {
+        synchronized (ACTIVE_LOCK) {
+            Files.deleteIfExists(new File(root, "active").toPath());
+            ACTIVE.put(root, null);
+            indexedFolder = null;
+            cachedIndex = null;
+        }
+        Library.revision.incrementAndGet();
+        removeChecked(root);
+        Files.createDirectories(root.toPath());
     }
 
     private void install(File zip, String sha) throws Exception {
@@ -233,6 +259,11 @@ final class MusicArchive {
         File[] folders = root.listFiles(File::isDirectory);
         if (folders != null) for (File dir : folders)
             if (!dir.getName().equals(keep)) remove(dir);
+    }
+
+    static void removeChecked(File folder) throws IOException {
+        remove(folder);
+        if (folder.exists()) throw new IOException("Не удалось удалить все загруженные файлы");
     }
 
     static void remove(File folder) {

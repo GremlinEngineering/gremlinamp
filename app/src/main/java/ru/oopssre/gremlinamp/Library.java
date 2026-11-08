@@ -401,14 +401,27 @@ class Library {
            &&readObject(stateFile("saved",game)).optInt("_music_contract")==1;
   }catch(Exception e){return false;}
  }
- boolean hasLegacyMusic(){return new File(root,"files").isDirectory();}
- void clearLegacyMusic()throws Exception{
+ private static final String[] DOWNLOAD_DIRS={"files","v1-files","saved","complete","pending","snapshots","offline","art","covers","timings"};
+ boolean hasDownloadedMusic(){
+  if(archive.hasDownload())return true;
+  for(String name:DOWNLOAD_DIRS){
+   String[] entries=new File(root,name).list();
+   if(entries!=null&&entries.length>0)return true;
+  }
+  return false;
+ }
+ void clearDownloadedMusic()throws Exception{
   DOWNLOAD_LOCK.lockInterruptibly();
   try{
-   File old=new File(root,"files");
-   MusicArchive.remove(old);
-   if(old.exists())throw new IOException("Не удалось удалить часть прежнего кэша");
-  }finally{DOWNLOAD_LOCK.unlock();}
+   synchronized(REQUEST_LOCK){
+    if(!preferences.edit().putBoolean("follow_all_music",false).putBoolean("archive_update_pending",false)
+       .putBoolean("archive_paused",false).putStringSet("saved_series",Collections.emptySet())
+       .putStringSet("paused_downloads",Collections.emptySet()).commit())
+     throw new IOException("Не удалось сбросить очередь загрузки");
+    archive.clear();
+    for(String name:DOWNLOAD_DIRS)MusicArchive.removeChecked(new File(root,name));
+   }
+  }finally{revision.incrementAndGet();DOWNLOAD_LOCK.unlock();}
  }
  boolean archived(JSONObject game){
   try{return archive.hasPlaylist(resolve(BASE,game.getString("manifest")));}catch(Exception e){return false;}
@@ -439,7 +452,7 @@ class Library {
  void queueDownloads(List<JSONObject> games)throws Exception{synchronized(REQUEST_LOCK){Set<String> paused=new HashSet<>(preferences.getStringSet("paused_downloads",Collections.emptySet()));for(JSONObject game:games){checkCancelled();File file=stateFile("pending",game);byte[] value=game.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8);if(!file.isFile()||!Arrays.equals(Files.readAllBytes(file.toPath()),value))atomic(file,value);paused.remove(game.getString("id"));}preferences.edit().putStringSet("paused_downloads",paused).apply();revision.incrementAndGet();}}
  void completeRequest(JSONObject game)throws Exception{synchronized(REQUEST_LOCK){Files.deleteIfExists(stateFile("pending",game).toPath());}}
  List<JSONObject> pendingGames(){List<JSONObject> result=new ArrayList<>();File[] files=new File(root,"pending").listFiles();if(files!=null)for(File file:files)try{JSONObject game=new JSONObject(new String(Files.readAllBytes(file.toPath()),java.nio.charset.StandardCharsets.UTF_8));if(game.optInt("_music_contract")==1&&!paused(game))result.add(game);}catch(Exception ignored){}return result;}
- void pausePending(){if(archive.active()!=null)preferences.edit().putBoolean("archive_paused",true).apply();cancel=true;cancelTransfers();synchronized(REQUEST_LOCK){Set<String> paused=new HashSet<>(preferences.getStringSet("paused_downloads",Collections.emptySet()));for(JSONObject game:pendingGames())paused.add(game.optString("id"));for(JSONObject game:savedGames())if(!offlineReady(game))paused.add(game.optString("id"));preferences.edit().putStringSet("paused_downloads",paused).apply();revision.incrementAndGet();}}
+ void pausePending(){if(archive.hasDownload())preferences.edit().putBoolean("archive_paused",true).apply();cancel=true;cancelTransfers();synchronized(REQUEST_LOCK){Set<String> paused=new HashSet<>(preferences.getStringSet("paused_downloads",Collections.emptySet()));for(JSONObject game:pendingGames())paused.add(game.optString("id"));for(JSONObject game:savedGames())if(!offlineReady(game))paused.add(game.optString("id"));preferences.edit().putStringSet("paused_downloads",paused).apply();revision.incrementAndGet();}}
  List<JSONObject> repairCandidates(){List<JSONObject> result=new ArrayList<>();for(JSONObject game:savedGames())if(game.optInt("_music_contract")==1&&!paused(game)&&!offlineReady(game))result.add(game);return result;}
  boolean needsMaintenance(){return !pendingGames().isEmpty()||!repairCandidates().isEmpty();}
  void resumeRequests(){preferences.edit().putStringSet("paused_downloads",Collections.emptySet()).putBoolean("archive_paused",false).apply();revision.incrementAndGet();}
@@ -452,9 +465,10 @@ class Library {
   }
  }
  void trackSeries(String id){Set<String> ids=new HashSet<>(preferences.getStringSet("saved_series",Collections.emptySet()));ids.add(id);preferences.edit().putStringSet("saved_series",ids).apply();}
- void syncSaved(Progress progress)throws Exception {
+ void syncSaved(Progress progress)throws Exception {syncSaved(progress,false);}
+ void syncSaved(Progress progress,boolean manual)throws Exception {
   cancel=false;
-  if(archive.active()!=null&&preferences.getBoolean("follow_all_music",false)
+  if(archive.hasDownload()&&(manual||preferences.getBoolean("follow_all_music",false))
           &&!preferences.getBoolean("archive_paused",false))downloadArchive(progress);
   JSONObject cat=MusicContract.catalog(index(true,true));
   List<JSONObject> all=new ArrayList<>();JSONArray rows=cat.getJSONArray("games");

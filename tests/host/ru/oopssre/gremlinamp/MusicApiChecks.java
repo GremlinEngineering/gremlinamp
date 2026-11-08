@@ -60,6 +60,7 @@ final class MusicApiChecks {
         JSONObject remoteIndex;
         final Deque<byte[]> receipts = new ArrayDeque<>(), downloads = new ArrayDeque<>();
         int queries;
+        File removedBeforeTransfer;
         Transport(File folder) { super(new Context(folder)); }
         @Override JSONObject onlineJson(String url) throws Exception {
             if (url.equals(MusicContract.INDEX) && remoteIndex != null) return remoteIndex;
@@ -72,6 +73,10 @@ final class MusicApiChecks {
                     .put("bytes", bytes.length).put("sha256", Library.hash(bytes))));
         }
         @Override void transferArchive(MusicArchive.Receipt receipt, File output, Progress progress) throws Exception {
+            if (removedBeforeTransfer != null) {
+                check(!removedBeforeTransfer.exists() && archive.active() == null, "old archive removed before ZIP transfer");
+                removedBeforeTransfer = null;
+            }
             Files.write(output.toPath(), downloads.remove());
         }
     }
@@ -130,11 +135,16 @@ final class MusicApiChecks {
             check(MusicContract.decoder(new JSONObject().put("backend","native").put("asset",new JSONObject().put("format","tmc"))).equals("site"),
                     "custom board format routes to supplied decoder");
 
+            library.receipts.add(old);
+            library.downloadArchive(s -> {});
+            check(original.equals(library.archive.active()), "unchanged receipt leaves the current copy in place");
+            library.removedBeforeTransfer = original;
             byte[] invalid = archive(Map.of("../escape",new byte[]{0},"game-index.json",json(ContractFixtures.index(one))));
             library.receipts.add(invalid);library.downloads.add(invalid);
             rejected = false;
             try { library.downloadArchive(s -> {}); } catch (IOException e) { rejected = true; }
-            check(rejected && original.equals(library.archive.active()),"unsafe ZIP leaves old active library untouched");
+            check(rejected && library.archive.active() == null && library.archive.hasDownload(),
+                    "unsafe replacement leaves an empty offline library and a retryable update");
 
             byte[] second = archive(Map.of("game-index.json",json(ContractFixtures.index(one)),
                     "package-alpha/playlist-11.json",json(manifest),entry,chip,
@@ -146,7 +156,7 @@ final class MusicApiChecks {
             library.downloadArchive(s -> {});
             check(library.queries == before + 2 && library.archive.active().getName().equals(Library.hash(second)),
                     "archive mismatch re-fetches the receipt and succeeds");
-            check(!original.exists() && input.get(0).isFile(),"old ZIP deleted after switch, existing decoder file survives");
+            check(!original.exists() && input.get(0).isFile(),"individual decoder cache survives ZIP replacement");
 
             byte[] wav = ByteBuffer.allocate(48).order(ByteOrder.LITTLE_ENDIAN)
                     .put("RIFF".getBytes()).putInt(40).put("WAVEfmt ".getBytes()).putInt(16)
@@ -167,10 +177,30 @@ final class MusicApiChecks {
             check(MusicContract.decoder(new JSONObject().put("backend","native").put("asset",new JSONObject().put("format","xyz"))).isEmpty(),
                     "unknown format is visible as unsupported");
             File legacy = new File(library.root,"files/legacy.nsf");
+            File poster = new File(library.root,"art/cover.img");
+            File onlineIndex = library.jsonFile(MusicContract.INDEX);
             Library.atomic(legacy,new byte[]{8});
-            library.clearLegacyMusic();
-            check(!legacy.exists() && library.archive.active()!=null && input.get(0).isFile(),
-                    "explicit cleanup removes only old cached audio");
+            Library.atomic(poster,new byte[]{9});
+            one.put("_music_contract",1);
+            library.markComplete(one,local);
+            library.queueDownloads(List.of(one));
+            library.trackSeries("ordered");
+            library.preferences.edit().putBoolean("follow_all_music",true).putBoolean("auto_music",true).apply();
+            check(library.hasDownloadedMusic() && library.pending(one) && library.subscribed(one),
+                    "clear action sees both downloaded and pending music");
+            library.clearDownloadedMusic();
+            check(!legacy.exists() && !poster.exists() && !input.get(0).exists() && !input.get(1).exists(),
+                    "clear action removes legacy audio, downloaded assets, dependencies and artwork");
+            check(library.archive.active()==null && !library.archive.hasDownload() && !library.hasDownloadedMusic(),
+                    "clear action removes full library and its retry state");
+            check(!library.pending(one) && !library.subscribed(one) && library.savedGames().isEmpty(),
+                    "clear action removes individual offline states and queued requests");
+            check(!library.preferences.getBoolean("follow_all_music",true)
+                    && library.preferences.getStringSet("saved_series",java.util.Collections.emptySet()).isEmpty(),
+                    "cleared downloads will not return automatically");
+            check(onlineIndex.isFile() && library.preferences.getBoolean("auto_music",false),
+                    "catalog cache and automatic-update setting survive deletion");
+            library.clearDownloadedMusic();
             System.out.println(checks + " music API v1 checks passed");
         } finally {
             MusicArchive.remove(root);
