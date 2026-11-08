@@ -10,3 +10,6 @@
 
 # Site decoder runtime imported from the supplied music_player.zip.
 app/src/main/assets/site-engine/
+
+# Personal presets belong only in the locally built APK.
+/app/src/main/assets/personal-radio.json

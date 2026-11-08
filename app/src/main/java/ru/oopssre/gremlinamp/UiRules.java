@@ -16,5 +16,9 @@ final class UiRules {
  static String appUpdateAction(boolean checking,boolean downloaded,boolean downloading){
   return checking?"Проверяю…":downloaded?"Установить обновление":downloading?"Отменить скачивание":"Проверить обновление";
  }
+ static boolean switchSeries(String playing, String selected, String state, boolean paused) {
+  return !paused&&!playing.isEmpty()&&!playing.equals(selected)
+    &&(state.equals("playing")||state.equals("loading")||state.equals("continuing"));
+ }
  static boolean canSeek(String state,boolean known,long duration){return known&&duration>0&&(state.equals("playing")||state.equals("paused"));}
 }

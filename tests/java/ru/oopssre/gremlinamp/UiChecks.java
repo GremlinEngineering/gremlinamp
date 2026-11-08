@@ -23,6 +23,13 @@ public class UiChecks {
   check(!UiRules.canSeek("ended",true,1000),"finished audio cannot expose a no-op seek control");
   check(!UiRules.canSeek("continuing",true,1000),"continuation search cannot expose a no-op seek control");
   check(!UiRules.canSeek("playing",false,1000),"unknown duration cannot seek");
+  for(String state:List.of("playing","loading","continuing")){
+   check(UiRules.switchSeries("a","b",state,false),"active series switches to a different series");
+   check(!UiRules.switchSeries("a","a",state,false),"opening the active series preserves position");
+  }
+  for(String state:List.of("idle","paused","ended","error"))
+   check(!UiRules.switchSeries("a","b",state,state.equals("paused")),"inactive queue allows browsing");
+  check(!UiRules.switchSeries("","b","playing",false),"radio or a standalone album allows browsing");
   System.out.println(count+" interface action checks passed");
  }
 }

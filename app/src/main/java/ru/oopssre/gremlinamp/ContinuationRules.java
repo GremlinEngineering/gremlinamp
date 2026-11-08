@@ -3,6 +3,7 @@ import java.util.*;
 final class ContinuationRules {
  static int score(String mode,boolean sameSeries,Set<String> sourceGenres,Set<String> genres,boolean samePlatform){
   int common=0;for(String g:sourceGenres)if(genres.contains(g))common++;
+  if(mode.equals("library"))return 1;
   if(mode.equals("series"))return sameSeries?100:0;
   if(mode.equals("genre"))return common>0?common*10:0;
   if(mode.equals("similar"))return (sameSeries?100:0)+common*10+(samePlatform&&common>0?2:0);

@@ -70,7 +70,7 @@ Game files may contain multiple compositions. Each composition appears as a sepa
 
 ## Build from source
 
-Requirements: Java 17, Android SDK Platform 35, Build Tools 35.0.0, NDK 27.0.12077973, CMake 3.22.1, `zip` and `keytool`.
+Requirements: Java 17, Gradle 8.13, Android SDK Platform 35, Build Tools 35.0.0, NDK 27.0.12077973, CMake 3.22.1 and `keytool`.
 
 ```bash
 export ANDROID_SDK_ROOT=/path/to/android-sdk
@@ -128,3 +128,9 @@ The main screen keeps playback, library sections, search and one filter. Whole-l
 ### Music API v1
 
 Game and series data come from `/music/game-index.json`. Full-library downloads use `/music/library.json`. When the receipt lists a new ZIP, the app removes the old extracted library before downloading it, verifies the size and SHA-256, then extracts and activates the new library. Retry the download if the update fails. The library menu has a separate action to clear the full offline library, individually downloaded games, their covers and pending downloads, including audio cached by older clients.
+
+## Radio and queues
+
+The library menu opens Radio in the same player as game music. Playback follows the network setting and can continue in the background. A local build can include a private preset array in `app/src/main/assets/personal-radio.json`; entries contain `title` and an HTTPS `url`. The file is ignored by Git. Settings show Personal mode when those presets are bundled.
+
+While a series is playing, opening a different series replaces the queue once its tracks are ready. The series header can also start playback directly. The **Across the library** continuation mode includes standalone games and respects filters and the downloaded-only setting. The analysis index refreshes separately from the game catalog and has its own status in queue settings.
