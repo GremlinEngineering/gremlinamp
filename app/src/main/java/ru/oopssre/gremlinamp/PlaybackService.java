@@ -41,9 +41,23 @@ public class PlaybackService extends Service {
   Entry e=queue.get(index);playedTracks.add(index);previewNext(e.game,token);JSONObject t=e.manifest.optJSONArray("tracks").optJSONObject(e.index);title=t.optString("title");gameTitle=e.game.optString("title");identity.begin(token,title,gameTitle);durationKnown=library.displayDuration(t)>=0;duration=durationKnown?library.displayDuration(t):t.optLong("play_ms",120000);session.setMetadata(new MediaMetadata.Builder().putString(MediaMetadata.METADATA_KEY_TITLE,title).putString(MediaMetadata.METADATA_KEY_ALBUM,gameTitle).build());announce();
   if(library.hiddenShort(t)){main.post(()->{if(token!=generation)return;if(++skippedShort>=queue.size())finishQueue("Все композиции скрыты фильтром");else advance(false);});return;}skippedShort=0;
   loadArtwork(e,t,token);
-  work=executor.submit(()->{try{if((localOnly||!library.networkAllowed())&&!library.available(t.getJSONObject("asset")))throw new IOException("Композиция не скачана");File file=library.fetch(e.manifest,t.getJSONObject("asset"));if(token!=generation)return;
-   if(t.optString("backend").equals("gme"))nativePlay(file,t,token);else main.post(()->mediaPlay(file,token));
-  }catch(Exception ex){if(token==generation&&!Thread.currentThread().isInterrupted()){final String failure=String.valueOf(ex.getMessage());main.post(()->skipUnavailable(token,failure));}}});
+  work=executor.submit(()->{
+   try{
+    String decoder=MusicContract.decoder(t);
+    if(decoder.isEmpty())throw new IOException(MusicContract.unsupported(t));
+    if((localOnly||!library.networkAllowed())&&!library.playableLocal(e.manifest,t))throw new IOException("Композиция не скачана");
+    List<File> files=new ArrayList<>();
+    JSONObject descriptor=decoder.equals("site")?library.decoderInput(e.manifest,t,files):null;
+    File file=descriptor==null?library.fetch(e.manifest,library.playbackAsset(t)):files.get(0);
+    if(token!=generation)return;
+    if(decoder.equals("media"))main.post(()->mediaPlay(file,token));
+    else nativePlay(file,t,decoder.equals("fallback")?"wav":decoder,files,descriptor,token);
+   }catch(Exception ex){
+    if(token==generation&&!Thread.currentThread().isInterrupted()){
+     String failure=String.valueOf(ex.getMessage());main.post(()->skipUnavailable(token,failure));
+    }
+   }
+  });
  }
  void loadArtwork(Entry e,JSONObject t,int token){
   if(artworkWork!=null)artworkWork.cancel(true);
@@ -53,25 +67,67 @@ public class PlaybackService extends Service {
   if(token!=generation||destroyed)return;android.graphics.Bitmap bitmap=Library.artwork(file);
   main.post(()->{if(token!=generation||destroyed)return;artworkPath=file.toString();identity.artwork(token,artworkPath);MediaMetadata.Builder meta=new MediaMetadata.Builder().putString(MediaMetadata.METADATA_KEY_TITLE,t.optString("title")).putString(MediaMetadata.METADATA_KEY_ALBUM,game.optString("title")).putString(MediaMetadata.METADATA_KEY_ARTIST,t.optString("artist"));if(durationKnown)meta.putLong(MediaMetadata.METADATA_KEY_DURATION,duration);if(bitmap!=null)meta.putBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART,bitmap);session.setMetadata(meta.build());});
  }
- void began(int token){if(token!=generation||destroyed)return;skippedUnavailable=0;history.record(position);Entry e=queue.get(position);playedGames.add(e.game.optString("id"));playedAudio.add(SimilarityRules.key(e.manifest.optJSONArray("tracks").optJSONObject(e.index)));}
+ void began(int token){if(token!=generation||destroyed)return;skippedUnavailable=0;history.record(position);Entry e=queue.get(position);playedGames.add(e.game.optString("id"));JSONObject track=e.manifest.optJSONArray("tracks").optJSONObject(e.index);
+  playedAudio.add(SimilarityRules.key(track));
+  if(!track.optString("id").isEmpty())library.preferences.edit()
+   .putString("last_game_id",MusicContract.packageId(e.manifest,e.game))
+   .putString("last_track_id",track.optString("id")).apply();}
  void skipUnavailable(int token,String reason){if(token!=generation||destroyed)return;releaseMedia();if(++skippedUnavailable>=queue.size()){finishQueue("Нет доступных композиций · "+reason);return;}error="Пропущено: "+title+" · "+reason;advance(false);}
  void finishQueue(String reason){generation++;previewRequest++;if(work!=null)work.cancel(true);library.cancelTransfers();releaseMedia();paused=true;state="ended";error=reason;nextGame="";announce();}
  void releaseMedia(){mediaReady=false;MediaPlayer old=media;media=null;if(old!=null){old.setOnPreparedListener(null);old.setOnCompletionListener(null);old.setOnErrorListener(null);old.release();}}
  void mediaPlay(File file,int token){if(token!=generation||destroyed)return;try{media=new MediaPlayer();MediaPlayer p=media;p.setAudioAttributes(new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA).setContentType(AudioAttributes.CONTENT_TYPE_MUSIC).build());p.setWakeMode(this,PowerManager.PARTIAL_WAKE_LOCK);p.setDataSource(file.toString());p.setOnPreparedListener(v->{if(token==generation&&media==v){mediaReady=true;duration=v.getDuration();durationKnown=true;began(token);if(!paused)v.start();state=paused?"paused":"playing";announce();}});p.setOnCompletionListener(v->{if(token==generation)advance(true);});p.setOnErrorListener((v,a,b)->{if(token==generation)skipUnavailable(token,"Ошибка аудио "+a+"/"+b);return true;});p.prepareAsync();}catch(Exception ex){skipUnavailable(token,String.valueOf(ex.getMessage()));}}
- void nativePlay(File file,JSONObject track,int token)throws Exception {
-  long h=Gme.open(file.toString(),track.optInt("subsong"));AudioTrack out=null;PowerManager.WakeLock wake=((PowerManager)getSystemService(POWER_SERVICE)).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK,"GremlinAmp:PCM");
-  try{wake.acquire(6*60*60*1000L);int size=Math.max(16384,AudioTrack.getMinBufferSize(44100,AudioFormat.CHANNEL_OUT_STEREO,AudioFormat.ENCODING_PCM_16BIT));out=new AudioTrack.Builder().setAudioAttributes(new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA).setContentType(AudioAttributes.CONTENT_TYPE_MUSIC).build()).setAudioFormat(new AudioFormat.Builder().setSampleRate(44100).setChannelMask(AudioFormat.CHANNEL_OUT_STEREO).setEncoding(AudioFormat.ENCODING_PCM_16BIT).build()).setBufferSizeInBytes(size).setTransferMode(AudioTrack.MODE_STREAM).build();if(token!=generation)return;out.play();main.post(()->{if(token!=generation)return;began(token);state=paused?"paused":"playing";announce();});
-   long known=library.knownDuration(track);long frames=0,play=known>=0?known:track.optLong("play_ms",120000),fade=known>=0&&!track.optBoolean("duration_known")?0:Math.max(0,track.optLong("fade_ms",5000));short[] pcm=new short[4096];
+ void nativePlay(File file,JSONObject track,String engine,List<File> files,JSONObject descriptor,int token)throws Exception {
+  int subsong=engine.equals("wav")?0:track.optInt("subsong");
+  AudioTrack output=null;
+  PowerManager.WakeLock wake=((PowerManager)getSystemService(POWER_SERVICE)).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK,"GremlinAmp:PCM");
+  try(ChipDecoder decoder=new ChipDecoder(this,engine,file,subsong,files,descriptor)){
+   wake.acquire(6*60*60*1000L);
+   int rate=decoder.sampleRate();
+   int size=Math.max(16384,AudioTrack.getMinBufferSize(rate,AudioFormat.CHANNEL_OUT_STEREO,AudioFormat.ENCODING_PCM_16BIT));
+   output=new AudioTrack.Builder()
+     .setAudioAttributes(new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA).setContentType(AudioAttributes.CONTENT_TYPE_MUSIC).build())
+     .setAudioFormat(new AudioFormat.Builder().setSampleRate(rate).setChannelMask(AudioFormat.CHANNEL_OUT_STEREO).setEncoding(AudioFormat.ENCODING_PCM_16BIT).build())
+     .setBufferSizeInBytes(size).setTransferMode(AudioTrack.MODE_STREAM).build();
+   if(token!=generation)return;
+   output.play();
+   main.post(()->{if(token==generation){began(token);state=paused?"paused":"playing";announce();}});
+
+   long play=Math.max(0,track.optLong("play_ms",120000));
+   long fade=Math.max(0,track.optLong("fade_ms",0));
+   long frames=0,limit=(play+fade)*rate/1000;
+   double gain=engine.equals("site")?1:MusicContract.gain(track);
+   short[] pcm=new short[4096];
    while(token==generation&&!Thread.currentThread().isInterrupted()){
-    if(seekTo>=0){long target=seekTo;seekTo=-1;out.pause();out.flush();Gme.seek(h,(int)target);frames=target*44100/1000;final long sought=target;main.post(()->{if(token==generation)elapsed=sought;});if(!paused)out.play();}
-    if(paused){out.pause();Thread.sleep(50);continue;}if(out.getPlayState()!=AudioTrack.PLAYSTATE_PLAYING)out.play();
-    if(frames*1000/44100>=play+fade||Gme.ended(h))break;Gme.render(h,pcm);
-    for(int i=0;i<pcm.length;i+=2){long ms=(frames+i/2)*1000/44100;double gain=ms<play?1:fade==0?0:Math.max(0,1.0-(double)(ms-play)/fade);pcm[i]=(short)(pcm[i]*gain);pcm[i+1]=(short)(pcm[i+1]*gain);}
-    int off=0;while(off<pcm.length&&token==generation){int n=out.write(pcm,off,pcm.length-off,AudioTrack.WRITE_BLOCKING);if(n<0)throw new IOException("AudioTrack "+n);off+=n;}frames+=pcm.length/2;final long rendered=Math.min(frames*1000/44100,play+fade);main.post(()->{if(token==generation)elapsed=rendered;});
+    if(seekTo>=0){
+     long target=seekTo;seekTo=-1;output.pause();output.flush();decoder.seek((int)target);
+     frames=target*rate/1000;
+     main.post(()->{if(token==generation)elapsed=target;});
+     if(!paused)output.play();
+    }
+    if(paused){output.pause();Thread.sleep(50);continue;}
+    if(output.getPlayState()!=AudioTrack.PLAYSTATE_PLAYING)output.play();
+    if(frames>=limit||decoder.ended())break;
+    decoder.render(pcm);
+    int samples=2*(int)Math.min(pcm.length/2,limit-frames);
+    for(int i=0;i<samples;i+=2){
+     long time=(frames+i/2)*1000/rate;
+     double scale=gain*(time<play?1:fade==0?0:Math.max(0,1.0-(double)(time-play)/fade));
+     pcm[i]=scale(pcm[i],scale);pcm[i+1]=scale(pcm[i+1],scale);
+    }
+    int offset=0;
+    while(offset<samples&&token==generation){
+     int n=output.write(pcm,offset,samples-offset,AudioTrack.WRITE_BLOCKING);
+     if(n<=0)throw new IOException("AudioTrack "+n);
+     offset+=n;
+    }
+    frames+=samples/2;
+    long rendered=frames*1000/rate;main.post(()->{if(token==generation)elapsed=rendered;});
    }
    if(token==generation)main.post(()->{if(token==generation)advance(true);});
-  }finally{Gme.close(h);if(out!=null)out.release();if(wake.isHeld())wake.release();}
+  }finally{if(output!=null)output.release();if(wake.isHeld())wake.release();}
  }
+ static short scale(short sample,double gain){return (short)Math.max(Short.MIN_VALUE,Math.min(Short.MAX_VALUE,Math.round(sample*gain)));}
+
  public void toggle(){if(queue.isEmpty())return;if(paused)resume();else pause();}
  public void pause(){if(queue.isEmpty())return;if(state.equals("continuing")){generation++;paused=true;state="ended";announce();return;}paused=true;if(media!=null&&mediaReady)try{if(media.isPlaying())media.pause();}catch(IllegalStateException ignored){}if(!state.equals("error")&&!state.equals("ended"))state="paused";announce();}
  public void resume(){if(queue.isEmpty())return;if(state.equals("ended")||state.equals("error")){start(pendingResume>=0?pendingResume:position);return;}if(am.requestAudioFocus(focus)!=AudioManager.AUDIOFOCUS_REQUEST_GRANTED)return;paused=false;if(media!=null&&mediaReady)try{media.start();}catch(IllegalStateException e){start(position);return;}state=mediaReady||state.equals("paused")?"playing":"loading";announce();}
@@ -87,11 +143,11 @@ public class PlaybackService extends Service {
   if(library.preferences.getString("after_album","stop").equals("stop")||repeat||repeatCollection)return;
   String acousticMode=library.preferences.getString("after_album","stop");if(SimilarityRules.mode(acousticMode)){JSONObject seed=queue.get(position).manifest.optJSONArray("tracks").optJSONObject(queue.get(position).index);Set<String> listened=new HashSet<>(playedAudio);boolean onlyLocal=localOnly||library.preferences.getBoolean("continue_local",true);continuationIo.submit(()->{try{MusicSimilarity.Selection selected=MusicSimilarity.next(library,seed,acousticMode,listened,onlyLocal,true,()->token==generation&&preview==previewRequest&&!destroyed);main.post(()->{if(token==generation&&preview==previewRequest&&!destroyed&&selected!=null)nextGame=selected.manifest.optJSONArray("tracks").optJSONObject(selected.index).optString("title")+" · "+selected.game.optString("title");});}catch(Exception ignored){}});return;}
   Set<String> seen=new HashSet<>(playedGames);for(Entry e:queue)seen.add(e.game.optString("id"));
-  continuationIo.submit(()->{try{List<JSONObject> candidates=Continuation.candidates(library,game,seen);String found="";for(JSONObject g:candidates){JSONObject m=localOnly||library.preferences.getBoolean("continue_local",true)?library.localManifest(g):library.cachedManifest(g);if(m==null){if(!library.preferences.getBoolean("continue_local",true)&&!localOnly){found=g.optString("title");break;}continue;}JSONArray ts=m.getJSONArray("tracks");boolean usable=false;for(int k=0;k<ts.length();k++)if(!library.hiddenShort(ts.getJSONObject(k))&&(!localOnly&&!library.preferences.getBoolean("continue_local",true)||library.available(ts.getJSONObject(k).getJSONObject("asset")))){usable=true;break;}if(usable){found=g.optString("title");break;}}final String name=found;main.post(()->{if(!destroyed&&token==generation&&preview==previewRequest)nextGame=name;});}catch(Exception ignored){}});
+  continuationIo.submit(()->{try{List<JSONObject> candidates=Continuation.candidates(library,game,seen);String found="";for(JSONObject g:candidates){JSONObject m=localOnly||library.preferences.getBoolean("continue_local",true)?library.localManifest(g):library.cachedManifest(g);if(m==null){if(!library.preferences.getBoolean("continue_local",true)&&!localOnly){found=g.optString("title");break;}continue;}JSONArray ts=m.getJSONArray("tracks");boolean usable=false;for(int k=0;k<ts.length();k++)if(!library.hiddenShort(ts.getJSONObject(k))&&(!localOnly&&!library.preferences.getBoolean("continue_local",true)||library.playableLocal(m,ts.getJSONObject(k)))){usable=true;break;}if(usable){found=g.optString("title");break;}}final String name=found;main.post(()->{if(!destroyed&&token==generation&&preview==previewRequest)nextGame=name;});}catch(Exception ignored){}});
  }
  void continueAlbum(){if(SimilarityRules.mode(library.preferences.getString("after_album","stop"))){continueMusic();return;}final int token=beginContinuation();JSONObject current=queue.get(position).game;Set<String> seen=new HashSet<>(playedGames);for(Entry e:queue)seen.add(e.game.optString("id"));
   continuationIo.submit(()->{try{List<JSONObject> choices=Continuation.candidates(library,current,seen);List<Entry> next=new ArrayList<>();String title="";boolean downloaded=localOnly||library.preferences.getBoolean("continue_local",true);
-   for(JSONObject game:choices){if(Thread.currentThread().isInterrupted()||token!=generation)return;JSONObject manifest=downloaded?library.localManifest(game):library.manifest(game,false);if(manifest==null)continue;JSONArray tracks=manifest.getJSONArray("tracks");for(int k=0;k<tracks.length();k++){JSONObject t=tracks.getJSONObject(k);if(!library.hiddenShort(t)&&(!downloaded||library.available(t.getJSONObject("asset"))))next.add(new Entry(game,manifest,k));}if(!next.isEmpty()){title=game.optString("title");break;}}
+   for(JSONObject game:choices){if(Thread.currentThread().isInterrupted()||token!=generation)return;JSONObject manifest=downloaded?library.localManifest(game):library.manifest(game,false);if(manifest==null)continue;JSONArray tracks=manifest.getJSONArray("tracks");for(int k=0;k<tracks.length();k++){JSONObject t=tracks.getJSONObject(k);if(!library.hiddenShort(t)&&(!downloaded||library.playableLocal(manifest,t)))next.add(new Entry(game,manifest,k));}if(!next.isEmpty()){title=game.optString("title");break;}}
    final String chosen=title;main.post(()->{if(destroyed||token!=generation)return;if(paused){state="ended";announce();return;}if(next.isEmpty()){paused=true;state="ended";error="Нет следующей игры для выбранного режима и фильтров";announce();return;}nextGame=chosen;appendContinuation(next);});
   }catch(Exception e){main.post(()->{if(token==generation&&!destroyed){paused=true;state="ended";error="Продолжение недоступно: "+e.getMessage();announce();}});}});
  }

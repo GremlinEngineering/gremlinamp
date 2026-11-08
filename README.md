@@ -28,7 +28,7 @@ The app is intended primarily for the site's listeners and game music enthusiast
 
 ## Install and start listening
 
-Requires **Android 8.0+**. Supports ARM64, ARMv7 and x86_64. Current version: **0.2.7**. The app interface is currently **Russian**.
+Requires **Android 8.0+**. Supports ARM64, ARMv7 and x86_64. Current version: **0.2.8**. The app interface is currently **Russian**.
 
 Application downloads are listed in the [site's media library](https://games.oopssre.ru/gremlin.html). You can also build the APK from source using the instructions below.
 
@@ -78,7 +78,15 @@ export GREMLINAMP_STOREPASS=android
 bash tools/build-sdk.sh
 ```
 
-Output: `build/GremlinAmp-0.2.7.apk`. Unless another key is supplied, the script creates a local development key at `build/development.keystore`. Never commit signing keys.
+Output: `build/GremlinAmp-0.2.8.apk`. Unless another key is supplied, the script creates a local development key at `build/development.keystore`. Never commit signing keys.
+
+Import the site decoder bundle before building.
+
+```sh
+python3 tools/import-site-engine.py /path/to/music_player.zip
+```
+
+The Android package includes the supplied site's WebAssembly modules, including libvgm 0.9 and GME Plus 0.10. Android System WebView 80 or later runs the local workers, and the Android playback service handles PCM output and the queue.
 
 For repeatable update signing, set `GREMLINAMP_KEYSTORE` to your private keystore and `GREMLINAMP_STOREPASS` to its password. The script uses the alias `gremlinamp`.
 
@@ -115,3 +123,8 @@ Interrupted updates preserve the last fully downloaded manifest in the Downloade
 Previous/Next follow actual playback history across shuffle and album boundaries. Continuations append to the queue. Missing files are skipped with a bounded retry count, and ending the queue releases the audio transport. Artwork retrieval and duration measurement do not delay downloaded audio.
 
 The main screen keeps playback, library sections, search and one filter. Whole-library download and shared refresh are in the menu; network and automatic updates are in settings. Tapping artwork opens it. Back restores the prior series or Downloaded view and its search. Catalog updates preserve the active screen.
+
+
+### Music API v1
+
+Game and series data come from `/music/game-index.json`. Full-library downloads use `/music/library.json` to verify the size and SHA-256 of the ZIP before atomically switching the offline library. The downloaded library remains available if an update fails. The library menu provides a separate action for removing audio cached by older clients.
