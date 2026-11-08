@@ -10,6 +10,8 @@ import androidx.media3.common.MediaItem;
 import androidx.media3.common.PlaybackException;
 import androidx.media3.common.Player;
 import androidx.media3.common.util.UnstableApi;
+
+import static ru.oopssre.gremlinamp.TransportState.Event;
 import androidx.media3.datasource.DefaultHttpDataSource;
 import androidx.media3.exoplayer.ExoPlayer;
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory;
@@ -18,7 +20,7 @@ import java.util.function.BooleanSupplier;
 
 @androidx.annotation.OptIn(markerClass=UnstableApi.class)
 final class RadioPlayback {
-    interface Callback { void state(String state, String error); }
+    interface Callback { void state(Event event, String error); }
 
     private static final long CONNECT_TIMEOUT_MS = 20_000;
     private final Context context;
@@ -39,7 +41,7 @@ final class RadioPlayback {
     void play(String url, Callback callback) {
         stop();
         if (!networkAllowed.getAsBoolean()) {
-            callback.state("error", "Радио ждёт разрешённую сеть");
+            callback.state(Event.FAIL, "Радио ждёт разрешённую сеть");
             return;
         }
         try {
@@ -56,16 +58,16 @@ final class RadioPlayback {
                 player.setWakeMode(C.WAKE_MODE_LOCAL);
             }
             listener = new Player.Listener() {
-                @Override public void onPlaybackStateChanged(int state) {
+                @Override public void onEvents(Player source, Player.Events events) {
                     if (listener != this) return;
-                    if (state == Player.STATE_BUFFERING) {
-                        if (bufferingSince == 0) bufferingSince = SystemClock.elapsedRealtime();
-                        callback.state("loading", "");
-                    } else if (state == Player.STATE_READY) {
-                        bufferingSince = 0;
-                        callback.state("playing", "");
-                    } else if (state == Player.STATE_ENDED) {
+                    if (source.getPlaybackState() == Player.STATE_ENDED) {
                         fail(callback, "Станция завершила эфир");
+                    } else if (source.isPlaying()) {
+                        bufferingSince = 0;
+                        callback.state(Event.READY, "");
+                    } else {
+                        if (bufferingSince == 0) bufferingSince = SystemClock.elapsedRealtime();
+                        callback.state(Event.BUFFER, "");
                     }
                 }
 
@@ -98,7 +100,7 @@ final class RadioPlayback {
 
     private void fail(Callback callback, String error) {
         stop();
-        callback.state("error", error);
+        callback.state(Event.FAIL, error);
     }
 
     void stop() {

@@ -20,7 +20,7 @@ final class SimilarityStore {
    if(!database(l).isFile())return false;
    try(SQLiteDatabase db=SQLiteDatabase.openDatabase(database(l).toString(),null,SQLiteDatabase.OPEN_READONLY);
        Cursor cursor=db.rawQuery("SELECT key FROM tracks LIMIT 1",null)){
-    return cursor.getColumnCount()==1;
+    return cursor.getColumnCount()==1&&(cursor.moveToFirst()||cursor.getCount()==0);
    }catch(Exception e){return false;}
   }
  }
@@ -28,11 +28,11 @@ final class SimilarityStore {
  static void refresh(Library l){if(!REFRESHING.compareAndSet(false,true))return;synchronized(REFRESH_LOCK){revision.incrementAndGet();File temp=null;SQLiteDatabase db=null;HttpURLConnection connection=null;
   try{l.requireNetwork();connection=(HttpURLConnection)new java.net.URL(URL).openConnection();connection.setConnectTimeout(15000);connection.setReadTimeout(30000);connection.setInstanceFollowRedirects(false);
    String etag=l.preferences.getString("similarity_etag","");if(!etag.isEmpty()&&readable(l))connection.setRequestProperty("If-None-Match",etag);
-   int code=connection.getResponseCode();if(code==304){l.preferences.edit().putString("similarity_status","Индекс похожей музыки актуален").apply();return;}if(code==404)throw new IOException("Индекс ещё не опубликован на сайте");if(code!=200)throw new IOException("Индекс: HTTP "+code);
+   int code=connection.getResponseCode();l.checkCancelled();if(code==304){if(!readable(l))throw new IOException("Нет сохранённого индекса для ответа HTTP 304");l.preferences.edit().putString("similarity_status","Индекс похожей музыки актуален").apply();return;}if(code==404)throw new IOException("Индекс ещё не опубликован на сайте");if(code!=200)throw new IOException("Индекс: HTTP "+code);
    temp=File.createTempFile("similarity-",".db",l.root);db=SQLiteDatabase.openOrCreateDatabase(temp,null);db.execSQL("CREATE TABLE tracks (key TEXT PRIMARY KEY, data TEXT NOT NULL)");db.beginTransaction();int schema=-1,count=0;boolean found=false;
    try(JsonReader reader=new JsonReader(new InputStreamReader(new LimitedInput(connection.getInputStream(),l),java.nio.charset.StandardCharsets.UTF_8))){reader.beginObject();while(reader.hasNext()){String name=reader.nextName();if(name.equals("schema_version"))schema=reader.nextInt();else if(name.equals("tracks")){found=true;reader.beginObject();while(reader.hasNext()){String key=reader.nextName();if(!SimilarityRules.validKey(key))throw new IOException("Некорректный ключ композиции");Object value=readValue(reader,0,new int[]{0});if(!(value instanceof JSONObject))throw new IOException("Некорректная запись индекса");JSONObject row=(JSONObject)value;if(row.optJSONArray("refs")==null||row.optJSONObject("neighbors")==null)throw new IOException("Неполная запись индекса");db.execSQL("INSERT INTO tracks(key,data) VALUES (?,?)",new Object[]{key.toLowerCase(Locale.ROOT),row.toString()});if(++count>250000)throw new IOException("Слишком много композиций в индексе");}reader.endObject();}else reader.skipValue();}reader.endObject();if(reader.peek()!=JsonToken.END_DOCUMENT)throw new IOException("Лишние данные индекса");}
    if(schema!=1||!found)throw new IOException("Неподдерживаемый формат индекса");db.setTransactionSuccessful();db.endTransaction();db.close();db=null;
-   synchronized(LOCK){Files.move(temp.toPath(),database(l).toPath(),StandardCopyOption.ATOMIC_MOVE,StandardCopyOption.REPLACE_EXISTING);}temp=null;
+   synchronized(LOCK){l.checkCancelled();Files.move(temp.toPath(),database(l).toPath(),StandardCopyOption.ATOMIC_MOVE,StandardCopyOption.REPLACE_EXISTING);}temp=null;
    l.preferences.edit().putString("similarity_etag",Objects.toString(connection.getHeaderField("ETag"),"")).putString("similarity_status","Индекс похожей музыки: "+count+" композиций").putLong("similarity_updated",System.currentTimeMillis()).apply();
   }catch(Exception e){l.preferences.edit().putString("similarity_status",String.valueOf(e.getMessage())+(readable(l)?" · используется сохранённый индекс":"")).apply();}
   finally{if(db!=null)db.close();if(connection!=null)connection.disconnect();if(temp!=null){temp.delete();new File(temp+"-journal").delete();}REFRESHING.set(false);revision.incrementAndGet();}

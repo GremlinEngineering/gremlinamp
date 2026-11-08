@@ -10,7 +10,7 @@ public class LibraryMaintenanceJob extends JobService {
  static final int ID=202;
  static volatile LibraryMaintenanceJob active;
  static volatile String status="";
- Library library;Thread worker;volatile boolean stopped;
+ volatile Library library;Thread worker;
 
  static void schedule(Context context){
   JobScheduler scheduler=(JobScheduler)context.getSystemService(Context.JOB_SCHEDULER_SERVICE);
@@ -25,20 +25,38 @@ public class LibraryMaintenanceJob extends JobService {
  }
  static void reschedule(Context context){((JobScheduler)context.getSystemService(Context.JOB_SCHEDULER_SERVICE)).cancel(ID);schedule(context);}
  public boolean onStartJob(JobParameters params){
-  library=new Library(this);active=this;stopped=false;
-  worker=new Thread(()->{boolean locked=false,retry=false;
+  Library current=new Library(this);library=current;
+  status="Проверяю офлайн-загрузки…";active=this;
+  worker=new Thread(()->{
+   boolean locked=false,retry=false;
    try{
     locked=Library.DOWNLOAD_LOCK.tryLock();if(!locked){retry=true;return;}
-    if(!library.networkAllowed()){retry=library.needsMaintenance();return;}
-    if(!library.needsMaintenance())return;
-    Library.Progress report=message->status=message;
-    library.repairSaved(report);
-    if(!library.pendingGames().isEmpty())library.download(library.pendingGames(),report);
-    retry=library.needsMaintenance();status=retry?"Часть оформления пока недоступна · повторим автоматически":"Скачанная музыка готова к работе без сети";
-   }catch(Exception e){retry=true;if(!stopped)status="Загрузка продолжится автоматически: "+e.getMessage();}
-   finally{if(locked)Library.DOWNLOAD_LOCK.unlock();if(active==this)active=null;Library.revision.incrementAndGet();if(!stopped)jobFinished(params,retry);}
-  },"library-maintenance");worker.start();return true;
+    if(!current.networkAllowed()){retry=current.needsMaintenance();return;}
+    if(!current.needsMaintenance())return;
+    Library.Progress report=message->{if(current==library&&!current.cancel)status=message;};
+    current.repairSaved(report);
+    java.util.List<org.json.JSONObject> pending=current.pendingGames();
+    if(!pending.isEmpty())current.download(pending,report);
+    retry=current.needsMaintenance();report.update(retry?"Часть оформления пока недоступна · повторим автоматически":"Скачанная музыка готова к работе без сети");
+   }catch(Exception e){retry=true;if(current==library&&!current.cancel)status="Загрузка продолжится автоматически: "+e.getMessage();}
+   finally{
+    if(locked)Library.DOWNLOAD_LOCK.unlock();
+    Library.revision.incrementAndGet();
+    boolean reschedule=retry;
+    new android.os.Handler(android.os.Looper.getMainLooper()).post(()->{
+     if(current!=library||current.cancel)return;
+     if(active==this)active=null;
+     jobFinished(params,reschedule);
+    });
+   }
+  },"library-maintenance");
+  worker.start();return true;
  }
- public boolean onStopJob(JobParameters params){stopped=true;if(active==this)active=null;if(library!=null){library.cancel=true;library.cancelTransfers();}if(worker!=null)worker.interrupt();return true;}
- public void onDestroy(){stopped=true;if(active==this)active=null;if(library!=null){library.cancel=true;library.cancelTransfers();}if(worker!=null)worker.interrupt();super.onDestroy();}
+ public boolean onStopJob(JobParameters params){cancelCurrent();return true;}
+ private void cancelCurrent(){
+  if(active==this)active=null;
+  Library current=library;if(current!=null)current.cancelWork();
+  if(worker!=null)worker.interrupt();
+ }
+ public void onDestroy(){cancelCurrent();super.onDestroy();}
 }

@@ -243,6 +243,7 @@ final class MusicArchive {
             }
             library.checkCancelled();
             synchronized (ACTIVE_LOCK) {
+                library.checkCancelled();
                 File folder = new File(root, sha);
                 if (folder.exists()) remove(folder);
                 Files.move(staging.toPath(), folder.toPath(), StandardCopyOption.ATOMIC_MOVE);

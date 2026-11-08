@@ -14,7 +14,8 @@ public class DownloadService extends Service {
  public int onStartCommand(Intent intent,int flags,int id){
   if(intent==null){stopSelf();return START_NOT_STICKY;}
   if(intent.getBooleanExtra("cancel",false)){library.pausePending();if(task!=null)task.cancel(true);progress="Загрузка приостановлена";stopSelf();return START_NOT_STICKY;}
-  accepted.incrementAndGet();startForeground(2,notification());if(running)return START_NOT_STICKY;running=true;
+  if(running)return START_NOT_STICKY;
+  running=true;progress="Подготавливаю загрузку…";accepted.incrementAndGet();startForeground(2,notification());
   String payload=intent.getStringExtra("games");
   boolean sync=intent.getBooleanExtra("sync",false);
   boolean archive=intent.getBooleanExtra("archive",false);
@@ -22,18 +23,19 @@ public class DownloadService extends Service {
    try{wake.acquire(6*60*60*1000L);if(!sync&&!archive){JSONArray requested=new JSONArray(payload);List<JSONObject> pending=new ArrayList<>();for(int k=0;k<requested.length();k++)pending.add(requested.getJSONObject(k));library.queueDownloads(pending);}progress="Ожидание текущей загрузки…";Library.DOWNLOAD_LOCK.lockInterruptibly();locked=true;if(Thread.currentThread().isInterrupted())throw new java.io.InterruptedIOException();
     Library.Progress report=s->{progress=s;((NotificationManager)getSystemService(NOTIFICATION_SERVICE)).notify(2,notification());};
     if(archive){
+     library.checkCancelled();library.preferences.edit().putBoolean("follow_all_music",true).apply();
      library.downloadArchive(report);
-     library.preferences.edit().putBoolean("follow_all_music",true).putBoolean("archive_paused",false).apply();
+     library.checkCancelled();
      MusicSyncJob.result(library,library.downloadSummary,true);
     }
-    else if(sync){library.resumeRequests();library.syncSaved(report,true);SimilarityStore.refresh(library);MusicSyncJob.result(library,library.downloadSummary,true);}
+    else if(sync){library.checkCancelled();library.resumeRequests();library.syncSaved(report,true);SimilarityStore.refresh(library);library.checkCancelled();MusicSyncJob.result(library,library.downloadSummary,true);}
     else {JSONArray a=new JSONArray(payload);List<JSONObject> games=new ArrayList<>();for(int k=0;k<a.length();k++)games.add(a.getJSONObject(k));library.download(games,report);report.update("Проверяю индекс похожей музыки…");SimilarityStore.refresh(library);}
     progress=library.downloadSummary;
    }
-   catch(Exception e){if(sync||archive)MusicSyncJob.result(library,"Обновление отложено: "+e.getMessage(),false);progress=library.cancel||Thread.currentThread().isInterrupted()?"Загрузка приостановлена":(archive||sync&&library.archive.hasDownload())?"ZIP не обновлён · "+e.getMessage():library.networkAllowed()?"Загрузка продолжится автоматически: "+e.getMessage():"Ожидание разрешённой сети · загрузка продолжится автоматически";}
+   catch(Exception e){if((sync||archive)&&!library.cancel&&!Thread.currentThread().isInterrupted())MusicSyncJob.result(library,"Обновление отложено: "+e.getMessage(),false);progress=library.cancel||Thread.currentThread().isInterrupted()?"Загрузка приостановлена":(archive||sync&&library.archive.hasDownload())?"ZIP не обновлён · "+e.getMessage():library.networkAllowed()?"Загрузка продолжится автоматически: "+e.getMessage():"Ожидание разрешённой сети · загрузка продолжится автоматически";}
    finally{Library.revision.incrementAndGet();if(locked)Library.DOWNLOAD_LOCK.unlock();if(wake.isHeld())wake.release();LibraryMaintenanceJob.schedule(this);stopForeground(STOP_FOREGROUND_REMOVE);stopSelf();}
   });return START_NOT_STICKY;
  }
- public void onTimeout(int startId,int fgsType){library.cancel=true;stopSelf();}
- public void onDestroy(){library.cancel=true;library.cancelTransfers();io.shutdownNow();instance=null;super.onDestroy();}
+ public void onTimeout(int startId,int fgsType){library.cancelWork();stopSelf();}
+ public void onDestroy(){library.cancelWork();io.shutdownNow();if(instance==this)instance=null;super.onDestroy();}
 }

@@ -1,5 +1,6 @@
 package ru.oopssre.gremlinamp;
 import java.util.*;
+import static ru.oopssre.gremlinamp.TransportState.*;
 public class UiChecks {
  static int count;static void check(boolean value,String message){count++;if(!value)throw new AssertionError(message);}
  public static void main(String[] args){
@@ -14,22 +15,18 @@ public class UiChecks {
   check(UiRules.downloadAction(List.of("Скачать"),true).isEmpty(),"busy action cannot start another transfer");
   check(UiRules.downloadAction(Arrays.asList("Скачать",null),false).isEmpty(),"unverified state cannot start a transfer");
   check(UiRules.downloadAction(List.of("Ожидание","Скачать"),false).equals("Скачать"),"additional requested games remain downloadable");
-  check(UiRules.appUpdateAction(false,false,false).equals("Проверить обновление"),"no installer: check only");
-  check(UiRules.appUpdateAction(false,false,true).equals("Отменить скачивание"),"running update: cancel only");
-  check(UiRules.appUpdateAction(false,true,false).equals("Установить обновление"),"downloaded installer: install only");
-  check(UiRules.appUpdateAction(true,false,false).equals("Проверяю…"),"duplicate update check is blocked");
-  check(UiRules.canSeek("playing",true,1000),"playing audio can seek");
-  check(UiRules.canSeek("paused",true,1000),"paused audio can seek");
-  check(!UiRules.canSeek("ended",true,1000),"finished audio cannot expose a no-op seek control");
-  check(!UiRules.canSeek("continuing",true,1000),"continuation search cannot expose a no-op seek control");
-  check(!UiRules.canSeek("playing",false,1000),"unknown duration cannot seek");
-  for(String state:List.of("playing","loading","continuing")){
-   check(UiRules.switchSeries("a","b",state,false),"active series switches to a different series");
-   check(!UiRules.switchSeries("a","a",state,false),"opening the active series preserves position");
+  check(UiRules.canSeek(PLAYING,true,1000),"playing audio can seek");
+  check(UiRules.canSeek(PAUSED,true,1000),"paused audio can seek");
+  check(!UiRules.canSeek(ENDED,true,1000),"finished audio cannot expose a no-op seek control");
+  check(!UiRules.canSeek(CONTINUING,true,1000),"continuation search cannot expose a no-op seek control");
+  check(!UiRules.canSeek(PLAYING,false,1000),"unknown duration cannot seek");
+  for(TransportState state:List.of(PLAYING,LOADING,CONTINUING)){
+   check(UiRules.switchSeries("a","b",state),"active series switches to a different series");
+   check(!UiRules.switchSeries("a","a",state),"opening the active series preserves position");
   }
-  for(String state:List.of("idle","paused","ended","error"))
-   check(!UiRules.switchSeries("a","b",state,state.equals("paused")),"inactive queue allows browsing");
-  check(!UiRules.switchSeries("","b","playing",false),"radio or a standalone album allows browsing");
+  for(TransportState state:List.of(IDLE,PAUSED,LOADING_PAUSED,ENDED,ERROR))
+   check(!UiRules.switchSeries("a","b",state),"inactive queue allows browsing");
+  check(!UiRules.switchSeries("","b",PLAYING),"radio or a standalone album allows browsing");
   System.out.println(count+" interface action checks passed");
  }
 }

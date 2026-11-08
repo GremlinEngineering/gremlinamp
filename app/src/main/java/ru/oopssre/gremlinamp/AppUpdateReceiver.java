@@ -1,8 +1,23 @@
 package ru.oopssre.gremlinamp;
-import android.content.*;
+
 import android.app.DownloadManager;
+import android.content.*;
+
 public class AppUpdateReceiver extends BroadcastReceiver {
- public void onReceive(Context c,Intent i){String action=i.getAction();if(Intent.ACTION_MY_PACKAGE_REPLACED.equals(action)){AppUpdates.clear(c);AppUpdates.schedule(c,true);MusicSyncJob.schedule(c,true);LibraryMaintenanceJob.schedule(c);return;}if(!DownloadManager.ACTION_DOWNLOAD_COMPLETE.equals(action)||i.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID,-2)!=AppUpdates.prefs(c).getLong("download",-1))return;
-  PendingResult result=goAsync();new Thread(()->{try{AppUpdates.verify(c);AppUpdates.status(c,"Обновление скачано · можно установить");AppUpdates.notifyReady(c);}catch(Exception e){AppUpdates.status(c,"Обновление: "+e.getMessage());}finally{result.finish();}},"verify-apk").start();
+ public void onReceive(Context context,Intent intent){
+  String action=intent.getAction();
+  boolean replaced=Intent.ACTION_MY_PACKAGE_REPLACED.equals(action);
+  long id=intent.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID,-1);
+  if(!replaced&&(!DownloadManager.ACTION_DOWNLOAD_COMPLETE.equals(action)||id<0
+       ||id!=AppUpdates.prefs(context).getLong("download",-1)))return;
+  PendingResult result=goAsync();
+  new Thread(()->{
+   try{
+    if(replaced){
+     AppUpdates.clear(context);AppUpdates.schedule(context,true);
+     MusicSyncJob.schedule(context,true);LibraryMaintenanceJob.schedule(context);
+    }else AppUpdates.finishDownload(context,id);
+   }finally{result.finish();}
+  },"verify-apk").start();
  }
 }
