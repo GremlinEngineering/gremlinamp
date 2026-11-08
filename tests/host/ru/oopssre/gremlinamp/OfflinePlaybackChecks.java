@@ -7,6 +7,7 @@ import java.nio.file.*;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.function.BooleanSupplier;
+import static ru.oopssre.gremlinamp.TransportState.*;
 
 /** Exercises production storage and transport controls; platform audio is simulated. */
 public final class OfflinePlaybackChecks {
@@ -27,7 +28,7 @@ public final class OfflinePlaybackChecks {
  static class Probe extends PlaybackService implements AutoCloseable {
   int started=-1;
   Probe(Library l){library=l;}
-  synchronized void start(int index){check(index>=0&&index<queue.size(),"valid queue position");generation++;position=index;started=index;state="playing";history.record(index);playedTracks.add(index);playedGames.add(queue.get(index).game.optString("id"));}
+  synchronized void start(int index){check(index>=0&&index<queue.size(),"valid queue position");generation++;position=index;started=index;state=PLAYING;history.record(index);playedTracks.add(index);playedGames.add(queue.get(index).game.optString("id"));}
   void announce(){}
   public void close(){generation++;executor.shutdownNow();continuationIo.shutdownNow();artworkIo.shutdownNow();}
  }
@@ -36,7 +37,7 @@ public final class OfflinePlaybackChecks {
   volatile boolean audioStarted;
   RealProbe(Library l){library=l;am=new android.media.AudioManager();session=new android.media.session.MediaSession(this,"test");}
   void announce(){}
-  void nativePlay(File f,JSONObject t,String engine,List<File> files,JSONObject descriptor,int token){began(token);audioStarted=true;state="playing";}
+  void nativePlay(File f,JSONObject t,String engine,List<File> files,JSONObject descriptor,int token){began(token);audioStarted=true;state=PLAYING;}
   public void close(){generation++;if(work!=null)work.cancel(true);if(artworkWork!=null)artworkWork.cancel(true);executor.shutdownNow();continuationIo.shutdownNow();artworkIo.shutdownNow();}
  }
  public static void main(String[] args)throws Exception {
@@ -71,35 +72,67 @@ public final class OfflinePlaybackChecks {
    JSONObject other=game(2);p.appendContinuation(List.of(new PlaybackService.Entry(other,manifest,0)));check(p.queue.size()==5&&p.position==4,"continuation preserves prior queue");p.previous();check(p.position==1,"Previous crosses album boundary");p.next();check(p.position==4,"forward history crosses album boundary");
   }
   try(Counter p=new Counter(l)){
-   p.queue=List.of(queue.get(0));p.repeat=true;l.preferences.edit().putString("after_album","series").apply();p.advance(true);check(p.started==0,"natural finish repeats one track");p.next();check(p.continuations==0&&p.state.equals("ended"),"manual skip cannot enable continuation while repeating");
+   p.queue=List.of(queue.get(0));p.repeat=true;l.preferences.edit().putString("after_album","series").apply();p.advance(true);check(p.started==0,"natural finish repeats one track");p.next();check(p.continuations==0&&p.state==ENDED,"manual skip cannot enable continuation while repeating");
   }
   try(Probe p=new Probe(l)){
-   l.preferences.edit().putString("after_album","stop").apply();p.queue=List.of(queue.get(0));p.media=new android.media.MediaPlayer();android.media.MediaPlayer audio=p.media;audio.start();p.mediaReady=true;p.state="playing";p.next();check(p.state.equals("ended")&&!audio.isPlaying()&&p.media==null,"Next on last track releases actual media transport");
+   l.preferences.edit().putString("after_album","stop").apply();p.queue=List.of(queue.get(0));p.media=new android.media.MediaPlayer();android.media.MediaPlayer audio=p.media;audio.start();p.mediaReady=true;p.state=PLAYING;p.next();check(p.state==ENDED&&!audio.isPlaying()&&p.media==null,"Next on last track releases actual media transport");
   }
-  try(Probe p=new Probe(l)){p.queue=List.of(queue.get(0));p.position=0;p.state="ended";p.localOnly=true;p.enqueue(List.of(queue.get(1)),false);check(p.pendingResume==1&&!p.localOnly,"adding online audio to an ended local queue prepares the new track");p.resume();check(p.started==1,"Play after enqueue starts new audio rather than replaying the last completed track");}
+  try(Probe p=new Probe(l)){p.queue=List.of(queue.get(0));p.position=0;p.state=ENDED;p.localOnly=true;p.enqueue(List.of(queue.get(1)),false);check(p.pendingResume==1&&!p.localOnly,"adding online audio to an ended local queue prepares the new track");p.resume();check(p.started==1,"Play after enqueue starts new audio rather than replaying the last completed track");}
   JSONObject mixed=new JSONObject().put("tracks",new JSONArray().put(track(asset(new byte[]{7}))).put(track));
   try(RealProbe p=new RealProbe(l)){p.localOnly=true;p.queue=List.of(new PlaybackService.Entry(game,mixed,0),new PlaybackService.Entry(game,mixed,1));p.start(0);await(()->p.audioStarted);check(p.position==1,"offline queue skips missing file and plays downloaded next track");check(p.history.current()==1,"missing audio is not recorded as listened");}
   CountDownLatch artworkEntered=new CountDownLatch(1),releaseArtwork=new CountDownLatch(1);Context online=new Context(Files.createTempDirectory("gremlin-art-delay").toFile());android.net.NetworkCapabilities net=new android.net.NetworkCapabilities();net.wifi=true;net.internet=true;online.cm.caps=net;
   Library slowArt=new Library(online){File cover(JSONObject g)throws Exception{artworkEntered.countDown();releaseArtwork.await();return new File(root,"missing");}void measureTrack(JSONObject t){throw new AssertionError("playback must not wait for duration scan");}};Library.atomic(slowArt.assetFile(asset),new byte[]{1,2,3});
   try(RealProbe p=new RealProbe(slowArt)){p.queue=List.of(new PlaybackService.Entry(game,manifest,0));p.start(0);check(artworkEntered.await(1,TimeUnit.SECONDS),"poster operation started");await(()->p.audioStarted);check(releaseArtwork.getCount()==1,"downloaded audio starts while optional poster is still blocked");releaseArtwork.countDown();}
+  try(Probe p=new Probe(l)){
+   p.am=new android.media.AudioManager();p.session=new android.media.session.MediaSession(p,"test");
+   p.queue=List.of(queue.get(0),queue.get(1));p.state=LOADING;
+   p.pause();check(p.state==LOADING_PAUSED,"pause during preparation is retained");
+   p.resume();check(p.state==LOADING,"resume before ready is still loading");
+   p.resume();check(p.state==LOADING,"repeated play cannot bypass preparation");
+   p.pause();p.ready(p.generation);check(p.state==PAUSED&&p.history.current()<0,"prepared audio stays paused and out of history");
+   p.resume();check(p.state==PLAYING&&p.history.current()==0,"resume of prepared audio begins playback");
+   p.resume();check(p.state==PLAYING,"play on running PCM keeps playing");
+   p.pause();p.completed(p.generation);check(p.state==PAUSED&&p.started<0,"late completion does not override pause");
+   p.resume();check(p.started==1,"resume consumes the held completion exactly once");
+   p.beginContinuation();check(!p.canNext(),"the two transports agree during a pending continuation");
+   int old=p.generation;p.enqueue(List.of(queue.get(0)),false);
+   check(p.generation!=old&&p.started==2,"manually appended audio supersedes pending automatic continuation");
+  }
+  try(Probe p=new Probe(l)){
+   p.queue=List.of(queue.get(0),queue.get(1));p.state=LOADING;p.shuffle=true;p.repeatCollection=true;
+   p.skipUnavailable(p.generation,"hidden");check(p.started==1,"failed audio is excluded from retry round");
+   p.skipUnavailable(p.generation,"unavailable");
+   check(p.state==ERROR&&p.error.contains("unavailable"),"mixed failures cannot loop forever under shuffle and repeat");
+   check(!p.canNext(),"ended failure offers retry through Play");
+  }
+  Library cancelledLibrary=new Library(context);
+  cancelledLibrary.cancelWork();
+  boolean cancelled=false;
+  try{cancelledLibrary.download(List.of(game),ignored->{});}catch(InterruptedIOException e){cancelled=true;}
+  check(cancelled,"cancelled download cannot reset cancellation");
+  cancelled=false;
+  try{cancelledLibrary.syncSaved(ignored->{},true);}catch(InterruptedIOException e){cancelled=true;}
+  check(cancelled,"cancelled library sync cannot reset cancellation");
   RadioStations.Station first=new RadioStations.Station("Test A","https://example.com/a",false);
   RadioStations.Station second=new RadioStations.Station("Test B","https://example.com/b",true);
   try(Probe p=new Probe(l)){
    p.am=new android.media.AudioManager();p.session=new android.media.session.MediaSession(p,"test");
    PlaybackService.Entry fromSeries=new PlaybackService.Entry(game,manifest,0,"series-a","Series A");
-   p.queue=List.of(fromSeries);p.state="playing";
+   p.queue=List.of(fromSeries);p.state=PLAYING;
    check(p.playingSeries().equals("series-a"),"the series belongs to the playing entry");
    p.playRadio(second);check(p.station==null&&!p.queue.isEmpty(),"locked preset cannot replace the game queue");
    p.playRadio(first);RadioPlayback.Callback outdated=RadioPlayback.callback;
-   check(p.station.equals(first)&&p.queue.isEmpty()&&p.state.equals("loading"),"radio owns playback without a stale game queue");
+   check(p.station.equals(first)&&p.queue.isEmpty()&&p.state==LOADING,"radio owns playback without a stale game queue");
    p.playRadio(first);check(RadioPlayback.starts==1,"repeated station selection during connection is ignored");
    l.preferences.edit().putBoolean(RadioStations.PERSONAL_MODE,true).apply();
    p.playRadio(second);check(RadioPlayback.starts==2&&p.station.equals(second),"selecting a different station switches once");
-   outdated.state("error","late error");check(p.state.equals("loading"),"late callback cannot replace a newer station state");
-   RadioPlayback.callback.state("playing","");check(p.state.equals("playing")&&!p.paused,"ready stream plays");
-   p.pause();check(p.paused&&p.state.equals("paused")&&RadioPlayback.stops==1,"Stop disconnects the stream");
-   p.resume();check(RadioPlayback.starts==3&&p.state.equals("loading"),"Play reconnects at the live point");
-   RadioPlayback.callback.state("error","timeout");check(p.paused&&p.error.equals("timeout"),"stream failure is retryable");
+   outdated.state(Event.FAIL,"late error");check(p.state==LOADING,"late callback cannot replace a newer station state");
+   RadioPlayback.callback.state(Event.READY,"");check(p.state==PLAYING&&p.state.wantsPlayback(),"ready stream plays");
+   RadioPlayback.callback.state(Event.BUFFER,"");check(p.state==LOADING,"rebuffering is not shown as playing");
+   RadioPlayback.callback.state(Event.READY,"");check(p.state==PLAYING,"recovered stream resumes after buffering");
+   p.pause();check(!p.state.wantsPlayback()&&p.state==PAUSED&&RadioPlayback.stops==1,"Stop disconnects the stream");
+   p.resume();check(RadioPlayback.starts==3&&p.state==LOADING,"Play reconnects at the live point");
+   RadioPlayback.callback.state(Event.FAIL,"timeout");check(!p.state.wantsPlayback()&&p.error.equals("timeout"),"stream failure is retryable");
    p.play(List.of(fromSeries),0,false);
    check(p.station==null&&RadioPlayback.releases==1&&p.playingSeries().equals("series-a"),"returning to a series releases radio and restores queue ownership");
   }

@@ -13,12 +13,10 @@ final class UiRules {
   }
   return !actionable?"":retry?"Повторить":update?"Обновить":"Скачать";
  }
- static String appUpdateAction(boolean checking,boolean downloaded,boolean downloading){
-  return checking?"Проверяю…":downloaded?"Установить обновление":downloading?"Отменить скачивание":"Проверить обновление";
+ static boolean switchSeries(String playing,String selected,TransportState state){
+  return !playing.isEmpty()&&!playing.equals(selected)&&state.wantsPlayback();
  }
- static boolean switchSeries(String playing, String selected, String state, boolean paused) {
-  return !paused&&!playing.isEmpty()&&!playing.equals(selected)
-    &&(state.equals("playing")||state.equals("loading")||state.equals("continuing"));
+ static boolean canSeek(TransportState state,boolean known,long duration){
+  return known&&duration>0&&state.canSeek();
  }
- static boolean canSeek(String state,boolean known,long duration){return known&&duration>0&&(state.equals("playing")||state.equals("paused"));}
 }

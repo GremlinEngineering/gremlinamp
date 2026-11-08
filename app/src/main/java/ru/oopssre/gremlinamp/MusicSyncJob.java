@@ -3,7 +3,7 @@ import android.app.job.*;
 import android.content.*;
 import java.util.concurrent.*;
 public class MusicSyncJob extends JobService {
- static final int ID=200;static volatile MusicSyncJob active;static volatile String status="";Library library;Future<?> task;final ExecutorService io=Executors.newSingleThreadExecutor();volatile boolean stopped;
+ static final int ID=200;static volatile MusicSyncJob active;static volatile String status="";volatile Library library;Future<?> task;final ExecutorService io=Executors.newSingleThreadExecutor();
  static void schedule(Context c){schedule(c,false);}
  static void schedule(Context c,boolean replace){schedule(c,replace,false);}
  static void schedule(Context c,boolean replace,boolean retry){Library l=new Library(c);JobScheduler js=(JobScheduler)c.getSystemService(JOB_SCHEDULER_SERVICE);if(!l.preferences.getBoolean("auto_music",false)){js.cancel(ID);return;}if(!replace&&js.getPendingJob(ID)!=null)return;
@@ -12,13 +12,44 @@ public class MusicSyncJob extends JobService {
   if(l.preferences.getString("sync_interval","daily").equals("hourly"))builder.setPeriodic(60*60*1000L,10*60*1000L);
   else builder.setMinimumLatency(retry?60*60*1000L:SyncRules.untilMorning(System.currentTimeMillis()));js.schedule(builder.build());
  }
- void finish(JobParameters params,boolean retry){jobFinished(params,false);LibraryMaintenanceJob.schedule(this);if(library.preferences.getString("sync_interval","daily").equals("daily"))new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(()->schedule(this,true,retry),500);}
+ void finish(JobParameters params,Library current,boolean retry){jobFinished(params,false);LibraryMaintenanceJob.schedule(this);if(current.preferences.getString("sync_interval","daily").equals("daily"))new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(()->schedule(this,true,retry),500);}
  static void result(Library l,String text,boolean success){status=text;l.preferences.edit().putString("sync_status",text).putLong(success?"sync_success":"sync_attempt",System.currentTimeMillis()).apply();Library.revision.incrementAndGet();}
- public boolean onStartJob(JobParameters params){library=new Library(this);stopped=false;active=this;
-  if(!library.preferences.getBoolean("auto_music",false)){active=null;return false;}
-  if(!NetworkPolicy.allowed(this,library.preferences.getString("network","wifi"))){active=null;result(library,"Ожидание разрешённой сети",false);if(library.preferences.getString("sync_interval","daily").equals("daily"))new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(()->schedule(this,true,true),500);return false;}
-  task=io.submit(()->{boolean acquired=false,retry=false;try{acquired=Library.DOWNLOAD_LOCK.tryLock();if(!acquired){retry=true;result(library,"Ожидание окончания текущей загрузки",false);return;}result(library,"Проверяю обновления музыки…",false);library.syncSaved(s->status=s);if(!stopped)SimilarityStore.refresh(library);if(!stopped)result(library,library.downloadSummary,true);}catch(Exception e){retry=true;if(!stopped)result(library,"Обновление отложено: "+e.getMessage(),false);}finally{if(active==this)active=null;if(acquired)Library.DOWNLOAD_LOCK.unlock();if(!stopped)finish(params,retry);}});return true;
+ public boolean onStartJob(JobParameters params){
+  Library current=new Library(this);library=current;
+  if(!current.preferences.getBoolean("auto_music",false))return false;
+  if(!current.networkAllowed()){
+   result(current,"Ожидание разрешённой сети",false);
+   if(current.preferences.getString("sync_interval","daily").equals("daily"))
+    new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(()->schedule(this,true,true),500);
+   return false;
+  }
+  status="Проверяю обновления музыки…";active=this;
+  task=io.submit(()->{
+   boolean acquired=false,retry=false;
+   try{
+    acquired=Library.DOWNLOAD_LOCK.tryLock();
+    if(!acquired){retry=true;if(current==library&&!current.cancel)result(current,"Ожидание окончания текущей загрузки",false);return;}
+    current.syncSaved(s->{if(current==library&&!current.cancel)status=s;});
+    current.checkCancelled();SimilarityStore.refresh(current);
+    if(current==library&&!current.cancel)result(current,current.downloadSummary,true);
+   }catch(Exception e){retry=true;if(current==library&&!current.cancel)result(current,"Обновление отложено: "+e.getMessage(),false);}
+   finally{
+    if(acquired)Library.DOWNLOAD_LOCK.unlock();
+    boolean reschedule=retry;
+    new android.os.Handler(android.os.Looper.getMainLooper()).post(()->{
+     if(current!=library||current.cancel)return;
+     if(active==this)active=null;
+     finish(params,current,reschedule);
+    });
+   }
+  });
+  return true;
  }
- public boolean onStopJob(JobParameters p){if(active==this)active=null;stopped=true;if(library!=null)library.cancel=true;if(task!=null)task.cancel(true);return true;}
- public void onDestroy(){if(active==this)active=null;stopped=true;if(library!=null)library.cancel=true;io.shutdownNow();super.onDestroy();}
+ public boolean onStopJob(JobParameters p){cancelCurrent();return true;}
+ private void cancelCurrent(){
+  if(active==this)active=null;
+  Library current=library;if(current!=null)current.cancelWork();
+  if(task!=null)task.cancel(true);
+ }
+ public void onDestroy(){cancelCurrent();io.shutdownNow();super.onDestroy();}
 }

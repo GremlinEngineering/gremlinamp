@@ -17,6 +17,16 @@ import java.util.*;
 final class AppUpdates {
  static final String SITE="https://games.oopssre.ru/", RELEASE=SITE+"assets/arcade/music-app/release.json";
  static final int JOB=201, NOTICE=201;
+ record Inspection(long id,UpdateRules.Stage stage) {}
+ static Inspection inspection(Context c,boolean checking){
+  long id=prefs(c).getLong("download",-1);
+  int status=id<0?-1:downloadState(c,id);
+  return new Inspection(id,UpdateRules.stage(checking,id>=0,downloading(status),
+   status==DownloadManager.STATUS_SUCCESSFUL,prefs(c).getLong("verified_download",-1)==id));
+ }
+ static boolean downloading(int state){
+  return state==DownloadManager.STATUS_PENDING||state==DownloadManager.STATUS_RUNNING||state==DownloadManager.STATUS_PAUSED;
+ }
  static android.content.SharedPreferences prefs(Context c){return c.getSharedPreferences("app_updates",0);}
  static long code(PackageInfo p){return Build.VERSION.SDK_INT>=28?p.getLongVersionCode():p.versionCode;}
  static DownloadManager dm(Context c){return (DownloadManager)c.getSystemService(Context.DOWNLOAD_SERVICE);}
@@ -29,20 +39,48 @@ final class AppUpdates {
  static synchronized String check(Context c)throws Exception{
   network(c);HttpURLConnection con=(HttpURLConnection)new URL(RELEASE).openConnection();con.setConnectTimeout(15000);con.setReadTimeout(15000);con.setInstanceFollowRedirects(false);con.setUseCaches(false);JSONObject r;
   try{if(con.getResponseCode()!=200)throw new IOException("Сайт: HTTP "+con.getResponseCode());try(InputStream in=con.getInputStream();ByteArrayOutputStream out=new ByteArrayOutputStream()){byte[] buf=new byte[4096];int n;while((n=in.read(buf))!=-1){out.write(buf,0,n);if(out.size()>131072)throw new IOException("Слишком большой файл релиза");}r=new JSONObject(out.toString("UTF-8"));}}finally{con.disconnect();}
+  if(Thread.currentThread().isInterrupted())throw new InterruptedIOException("Проверка обновления отменена");
   long installed=code(c.getPackageManager().getPackageInfo(c.getPackageName(),0)),build=r.getLong("build");
   if(build<=installed){clear(c);return status(c,"Установлена актуальная версия");}
   JSONObject apk=r.getJSONObject("apk");String url=UpdateRules.apkUrl(apk.getString("url")),sha=apk.getString("sha256");long bytes=apk.getLong("bytes");if(!sha.matches("[a-fA-F0-9]{64}")||bytes<=0||bytes>200*1048576L)throw new IOException("Некорректные данные релиза");
-  long id=prefs(c).getLong("download",-1);if(id!=-1&&prefs(c).getLong("build",0)==build&&sha.equalsIgnoreCase(prefs(c).getString("sha",""))){int state=downloadState(c,id);if(state==DownloadManager.STATUS_SUCCESSFUL){verify(c);notifyReady(c);return status(c,"Обновление скачано · можно установить");}if(state==DownloadManager.STATUS_PENDING||state==DownloadManager.STATUS_RUNNING||state==DownloadManager.STATUS_PAUSED)return status(c,"APK скачивается · ожидание сети возможно");}
+  long id=prefs(c).getLong("download",-1);
+  if(id!=-1&&prefs(c).getLong("build",0)==build&&sha.equalsIgnoreCase(prefs(c).getString("sha",""))){
+   int state=downloadState(c,id);
+   if(state==DownloadManager.STATUS_SUCCESSFUL&&finishDownload(c,id))return prefs(c).getString("status","");
+   if(downloading(state))return status(c,"APK скачивается · ожидание сети возможно");
+  }
   clear(c);prefs(c).edit().putLong("build",build).putLong("bytes",bytes).putString("sha",sha).putString("version",r.getString("version")).commit();
   File destination=new File(c.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS),"GremlinAmp-update.apk");if(destination.exists()&&!destination.delete())throw new IOException("Не удалось заменить старый APK");
   DownloadManager.Request req=new DownloadManager.Request(Uri.parse(url)).setTitle("GremlinAmp · обновление "+r.getString("version")).setDescription("После скачивания подтвердите установку в GremlinAmp").setMimeType("application/octet-stream").setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE).setDestinationUri(Uri.fromFile(destination)).setAllowedOverRoaming(false).setAllowedNetworkTypes(new Library(c).preferences.getString("network","wifi").equals("any")?DownloadManager.Request.NETWORK_WIFI|DownloadManager.Request.NETWORK_MOBILE:DownloadManager.Request.NETWORK_WIFI);
   long download=dm(c).enqueue(req);prefs(c).edit().putLong("download",download).commit();return status(c,"Скачивается GremlinAmp "+r.getString("version"));
  }
  static int downloadState(Context c,long id){try(Cursor q=dm(c).query(new DownloadManager.Query().setFilterById(id))){return q!=null&&q.moveToFirst()?q.getInt(q.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS)):-1;}}
- static void clear(Context c){long id=prefs(c).getLong("download",-1);if(id!=-1)dm(c).remove(id);prefs(c).edit().remove("download").apply();((NotificationManager)c.getSystemService(Context.NOTIFICATION_SERVICE)).cancel(NOTICE);}
+ static synchronized void clear(Context c){long id=prefs(c).getLong("download",-1);if(id!=-1)dm(c).remove(id);prefs(c).edit().remove("download").remove("verified_download").apply();((NotificationManager)c.getSystemService(Context.NOTIFICATION_SERVICE)).cancel(NOTICE);}
  static String status(Context c,String s){prefs(c).edit().putString("status",s).putLong("checked",System.currentTimeMillis()).apply();return s;}
- static synchronized Uri verify(Context c)throws Exception{
-  long id=prefs(c).getLong("download",-1);if(id<0||downloadState(c,id)!=DownloadManager.STATUS_SUCCESSFUL)throw new IOException("APK ещё не скачан");
+ static synchronized void cancelDownload(Context c,long id){
+  if(id<0||id!=prefs(c).getLong("download",-1)||!downloading(downloadState(c,id)))return;
+  clear(c);status(c,"Скачивание обновления отменено");
+ }
+ static synchronized boolean finishDownload(Context c,long id){
+  if(id<0||id!=prefs(c).getLong("download",-1))return false;
+  int state=downloadState(c,id);
+  if(downloading(state))return false;
+  if(state==DownloadManager.STATUS_SUCCESSFUL&&prefs(c).getLong("verified_download",-1)==id)return true;
+  try{
+   verify(c,id);
+   prefs(c).edit().putLong("verified_download",id).apply();
+   status(c,"Обновление скачано · можно установить");notifyReady(c);return true;
+  }catch(Exception e){
+   invalidDownload(c,id,e);return false;
+  }
+ }
+ private static synchronized void invalidDownload(Context c,long id,Exception error){
+  if(id<0||id!=prefs(c).getLong("download",-1))return;
+  clear(c);status(c,"Обновление: "+error.getMessage()+" · повторите проверку");
+ }
+ static synchronized Uri verify(Context c,long id)throws Exception{
+  if(id<0||id!=prefs(c).getLong("download",-1))throw new IOException("Выбранное обновление больше недоступно");
+  if(downloadState(c,id)!=DownloadManager.STATUS_SUCCESSFUL)throw new IOException("Загрузка APK не завершена");
   File f=new File(c.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS),"GremlinAmp-update.apk");if(f.length()!=prefs(c).getLong("bytes",0))throw new IOException("Размер APK не совпадает");
   MessageDigest digest=MessageDigest.getInstance("SHA-256");try(InputStream in=new FileInputStream(f)){byte[] b=new byte[65536];int n;while((n=in.read(b))!=-1)digest.update(b,0,n);}StringBuilder hex=new StringBuilder();for(byte b:digest.digest())hex.append(String.format(Locale.ROOT,"%02x",b&255));if(!hex.toString().equalsIgnoreCase(prefs(c).getString("sha","")))throw new IOException("SHA-256 APK не совпадает");
   PackageManager pm=c.getPackageManager();int flags=PackageManager.GET_SIGNATURES;PackageInfo remote=pm.getPackageArchiveInfo(f.getAbsolutePath(),flags),self=pm.getPackageInfo(c.getPackageName(),flags);
@@ -51,5 +89,5 @@ final class AppUpdates {
   Uri uri=dm(c).getUriForDownloadedFile(id);if(uri==null)throw new IOException("Файл обновления недоступен");return uri;
  }
  static void notifyReady(Context c){NotificationManager nm=(NotificationManager)c.getSystemService(Context.NOTIFICATION_SERVICE);nm.createNotificationChannel(new NotificationChannel("app_updates","Обновления GremlinAmp",NotificationManager.IMPORTANCE_DEFAULT));PendingIntent p=PendingIntent.getActivity(c,201,new Intent(c,MainActivity.class).putExtra("app_update",true),PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);try{nm.notify(NOTICE,new Notification.Builder(c,"app_updates").setSmallIcon(android.R.drawable.stat_sys_download_done).setContentTitle("GremlinAmp · обновление скачано").setContentText("Нажмите, чтобы проверить и установить APK").setContentIntent(p).setAutoCancel(true).build());}catch(SecurityException ignored){}}
- static void install(MainActivity a){a.message("Проверяю APK и подпись…");a.io.submit(()->{try{Uri uri=verify(a);a.runOnUiThread(()->{try{if(!a.getPackageManager().canRequestPackageInstalls()){a.dialogBuilder().setTitle("Разрешение на обновление").setMessage("Разрешите GremlinAmp установку приложений в настройках Android. Затем снова нажмите «Установить обновление».").setPositiveButton("Открыть настройки",(d,w)->a.startActivity(new Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,Uri.parse("package:"+a.getPackageName())))).setNegativeButton("Позже",null).show();return;}a.startActivity(new Intent(Intent.ACTION_VIEW).setDataAndType(uri,"application/vnd.android.package-archive").addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION));}catch(Exception e){a.message("Установка: "+e.getMessage());}});}catch(Exception e){a.message("Обновление: "+e.getMessage());}});}
+ static void install(MainActivity a,long id){a.message("Проверяю APK и подпись…");a.io.submit(()->{try{Uri uri=verify(a,id);a.runOnUiThread(()->{if(a.isFinishing()||a.isDestroyed()||id!=prefs(a).getLong("download",-1))return;try{if(!a.getPackageManager().canRequestPackageInstalls()){a.dialogBuilder().setTitle("Разрешение на обновление").setMessage("Разрешите GremlinAmp установку приложений в настройках Android. Затем снова нажмите «Установить обновление».").setPositiveButton("Открыть настройки",(d,w)->a.startActivity(new Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,Uri.parse("package:"+a.getPackageName())))).setNegativeButton("Позже",null).show();return;}a.startActivity(new Intent(Intent.ACTION_VIEW).setDataAndType(uri,"application/vnd.android.package-archive").addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION));}catch(Exception e){a.message("Установка: "+e.getMessage());}});}catch(Exception e){invalidDownload(a,id,e);a.message("Обновление: "+e.getMessage());}});}
 }

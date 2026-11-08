@@ -6,6 +6,6 @@ mkdir -p build/playback-tests
 mapfile -t runtime < <(find tests/playback-runtime -name '*.java' -print)
 java com.sun.tools.javac.Main -cp "$JSON_JAR" -d build/playback-tests \
  tests/host/android/content/*.java tests/host/android/net/*.java "${runtime[@]}" \
- app/src/main/java/ru/oopssre/gremlinamp/{Library,MusicArchive,MusicContract,ChipDecoder,WavPcm,Gme,NetworkPolicy,Continuation,ContinuationRules,PlaybackRules,PlaybackIdentity,PlaybackHistory,PlaybackService,RadioStations,MusicSimilarity,SimilarityRules}.java \
+ app/src/main/java/ru/oopssre/gremlinamp/{Library,MusicArchive,MusicContract,ChipDecoder,WavPcm,Gme,NetworkPolicy,Continuation,ContinuationRules,PlaybackRules,TransportState,PlaybackIdentity,PlaybackHistory,PlaybackService,RadioStations,MusicSimilarity,SimilarityRules}.java \
  tests/similarity/ru/oopssre/gremlinamp/SimilarityStore.java tests/host/ru/oopssre/gremlinamp/ContractFixtures.java tests/host/ru/oopssre/gremlinamp/OfflinePlaybackChecks.java
 java -cp "build/playback-tests:$JSON_JAR" ru.oopssre.gremlinamp.OfflinePlaybackChecks
