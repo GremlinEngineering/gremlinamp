@@ -4,16 +4,16 @@ import java.io.IOException;
 final class UpdateRules {
  enum Stage {
   CHECK("Проверить обновление"), CHECKING("Проверяю…"), DOWNLOADING("Отменить скачивание"),
-  VERIFYING("Проверяю APK…"), READY("Установить обновление"), RETRY("Повторить проверку");
+  READY("Установить обновление"), RETRY("Повторить проверку");
   final String action;
   Stage(String action){this.action=action;}
-  boolean actionable(){return this!=CHECKING&&this!=VERIFYING;}
+  boolean actionable(){return this!=CHECKING;}
  }
- static Stage stage(boolean checking,boolean tracked,boolean downloading,boolean complete,boolean verified){
+ static Stage stage(boolean checking,boolean tracked,boolean downloading,boolean complete){
   if(checking)return Stage.CHECKING;
   if(!tracked)return Stage.CHECK;
   if(downloading)return Stage.DOWNLOADING;
-  if(complete)return verified?Stage.READY:Stage.VERIFYING;
+  if(complete)return Stage.READY;
   return Stage.RETRY;
  }
 

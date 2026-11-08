@@ -24,6 +24,11 @@ public class PlaybackService extends Service {
  public static volatile PlaybackService instance;final PlaybackIdentity identity=new PlaybackIdentity();
  final PlaybackHistory history=new PlaybackHistory();
  private RadioPlayback radio;
+ final AudioEnergy audioEnergy=new AudioEnergy();
+ final StreamCache streamCache=new StreamCache(StreamCache.LIMIT);
+ private ExecutorService preloadIo;
+ private Future<?> preloadWork;
+ private boolean preloadEnabled;
  RadioStations.Station station;
  final ExecutorService artworkIo=Executors.newFixedThreadPool(2);Future<?> artworkWork;int pendingResume=-1;
  final Set<Integer> rejectedTracks=new HashSet<>();
@@ -35,7 +40,7 @@ public class PlaybackService extends Service {
  volatile TransportState state=IDLE;volatile long duration;volatile boolean durationKnown;volatile long seekTo=-1;boolean mediaReady;volatile boolean destroyed;volatile String artworkPath="";volatile String gameTitle="";
  volatile boolean shuffle,repeat,repeatCollection;MediaPlayer media;MediaSession session;AudioManager am;AudioFocusRequest focus;Library library;long handle;Future<?> work;
  public IBinder onBind(Intent i){return null;}
- public void onCreate(){super.onCreate();instance=this;library=new Library(this);shuffle=library.preferences.getBoolean("shuffle",false);repeat=library.preferences.getBoolean("repeat",false);repeatCollection=library.preferences.getBoolean("loop",false);am=(AudioManager)getSystemService(AUDIO_SERVICE);
+ public void onCreate(){super.onCreate();instance=this;library=new Library(this,getPackageName().endsWith(".tv"));if(library.streaming)preloadIo=Executors.newSingleThreadExecutor();shuffle=library.preferences.getBoolean("shuffle",false);repeat=library.preferences.getBoolean("repeat",false);repeatCollection=library.preferences.getBoolean("loop",false);am=(AudioManager)getSystemService(AUDIO_SERVICE);
   ((NotificationManager)getSystemService(NOTIFICATION_SERVICE)).createNotificationChannel(new NotificationChannel("play","Музыка",NotificationManager.IMPORTANCE_LOW));
   session=new MediaSession(this,"GremlinAmp");session.setCallback(new MediaSession.Callback(){public void onPlay(){resume();}public void onPause(){pause();}public void onSkipToNext(){next();}public void onSkipToPrevious(){previous();}public void onStop(){stopSelf();}public void onSeekTo(long value){seek(value);}});
   session.setFlags(MediaSession.FLAG_HANDLES_MEDIA_BUTTONS|MediaSession.FLAG_HANDLES_TRANSPORT_CONTROLS);session.setActive(true);
@@ -46,9 +51,11 @@ public class PlaybackService extends Service {
  public int onStartCommand(Intent i,int f,int id){if(i!=null)switch(i.getStringExtra("action")==null?"":i.getStringExtra("action")){case "toggle"->toggle();case "next"->next();case "previous"->previous();}return START_NOT_STICKY;}
  PendingIntent action(String a,int code){return PendingIntent.getService(this,code,new Intent(this,PlaybackService.class).putExtra("action",a),PendingIntent.FLAG_IMMUTABLE|PendingIntent.FLAG_UPDATE_CURRENT);}
  Notification notification(){
+  Intent open=new Intent(this,MainActivity.class);
+  if(library.streaming)open.setClassName(this,"ru.oopssre.gremlinamp.TvActivity");
   Notification.Builder builder=new Notification.Builder(this,"play").setSmallIcon(android.R.drawable.ic_media_play)
    .setContentTitle(title).setContentText(error.isEmpty()?(station==null?"Музыка Аркадного зала":"Интернет-радио"):error)
-   .setContentIntent(PendingIntent.getActivity(this,0,new Intent(this,MainActivity.class),PendingIntent.FLAG_IMMUTABLE))
+   .setContentIntent(PendingIntent.getActivity(this,0,open,PendingIntent.FLAG_IMMUTABLE))
    .setOnlyAlertOnce(true);
   Notification.MediaStyle style=new Notification.MediaStyle().setMediaSession(session.getSessionToken());
   boolean previous=!queue.isEmpty(), toggle=previous||station!=null, next=canNext();
@@ -95,16 +102,17 @@ public class PlaybackService extends Service {
    error="Не удалось получить аудиофокус";state=state.on(Event.FAIL);announce();return;
   }
   generation++;previewRequest++;int token=generation;
+  clearStreamCache();
   if(work!=null)work.cancel(true);
   if(artworkWork!=null)artworkWork.cancel(true);
   library.cancelTransfers();releaseMedia();
   queue=Collections.emptyList();history.clear();pendingResume=-1;completionPending=false;nextGame="";artworkPath="";
-  station=chosen;position=0;elapsed=0;duration=0;durationKnown=false;seekTo=-1;error="";state=state.on(Event.LOAD);
+  audioEnergy.reset();station=chosen;position=0;elapsed=0;duration=0;durationKnown=false;seekTo=-1;error="";state=state.on(Event.LOAD);
   title=chosen.title();gameTitle="Интернет-радио";identity.begin(token,title,gameTitle);
   session.setMetadata(new MediaMetadata.Builder().putString(MediaMetadata.METADATA_KEY_TITLE,title)
    .putString(MediaMetadata.METADATA_KEY_ALBUM,gameTitle).build());
   announce();
-  if(radio==null)radio=new RadioPlayback(this,main,library::networkAllowed);
+  if(radio==null)radio=new RadioPlayback(this,main,library::networkAllowed,library.streaming?audioEnergy:null);
   radio.play(chosen.url(),(next,problem)->{
    if(destroyed||token!=generation)return;
    TransportState updated=state.on(next);
@@ -131,25 +139,34 @@ public class PlaybackService extends Service {
  public void play(List<Entry> list,int index,boolean downloadedOnly){
   if(list.isEmpty()||index<0||index>=list.size())return;
   releaseRadio();
+  if(library.streaming){clearStreamCache();preloadEnabled=true;}
   queue=new ArrayList<>(list);history.clear();playedGames.clear();playedAudio.clear();playedTracks.clear();rejectedTracks.clear();
   localOnly=downloadedOnly;start(index);
  }
  synchronized void start(int index){
   if(index<0||index>=queue.size())return;
   generation++;int token=generation;
+  cancelPreload();
   if(work!=null)work.cancel(true);
   library.cancelTransfers();releaseMedia();
-  position=index;pendingResume=-1;completionPending=false;elapsed=0;seekTo=-1;error="";state=state.on(Event.LOAD);artworkPath="";
+  audioEnergy.reset();position=index;pendingResume=-1;completionPending=false;elapsed=0;seekTo=-1;error="";state=state.on(Event.LOAD);artworkPath="";
   Entry e=queue.get(index);playedTracks.add(index);previewNext(e.game,token);JSONObject t=e.manifest.optJSONArray("tracks").optJSONObject(e.index);title=t.optString("title");gameTitle=e.game.optString("title");identity.begin(token,title,e.seriesTitle.isEmpty()?gameTitle:e.seriesTitle+" · "+gameTitle);durationKnown=library.displayDuration(t)>=0;duration=durationKnown?library.displayDuration(t):t.optLong("play_ms",120000);session.setMetadata(new MediaMetadata.Builder().putString(MediaMetadata.METADATA_KEY_TITLE,title).putString(MediaMetadata.METADATA_KEY_ALBUM,gameTitle).build());announce();
   if(library.hiddenShort(t)){main.post(()->skipUnavailable(token,"Композиция скрыта фильтром"));return;}
   if(am.requestAudioFocus(focus)!=AudioManager.AUDIOFOCUS_REQUEST_GRANTED){
    error="Не удалось получить аудиофокус";state=state.on(Event.FAIL);announce();return;
   }
-  loadArtwork(e,t,token);
+  if(!library.streaming)loadArtwork(e,t,token);
   work=executor.submit(()->{
    try{
-    String decoder=MusicContract.decoder(t);
+    String decoder=library.streaming?MusicContract.streamingDecoder(t):MusicContract.decoder(t);
     if(decoder.isEmpty())throw new IOException(MusicContract.unsupported(t));
+    if(library.streaming){
+     try(StreamCache.Track lease=streamCache.track(true)){
+      Library.StreamInputs inputs=library.streamInputs(e.manifest,t,decoder,lease);
+      if(token==generation)renderPcm(t,decoder,token,()->new ChipDecoder(this,decoder,inputs));
+     }
+     return;
+    }
     if((localOnly||!library.networkAllowed())&&!library.playableLocal(e.manifest,t))throw new IOException("Композиция не скачана");
     List<File> files=new ArrayList<>();
     JSONObject descriptor=decoder.equals("site")?library.decoderInput(e.manifest,t,files):null;
@@ -164,6 +181,31 @@ public class PlaybackService extends Service {
    }
   });
  }
+ void clearStreamCache(){
+  preloadEnabled=false;
+  cancelPreload();
+  streamCache.clear();
+ }
+ private void cancelPreload(){
+  if(preloadWork!=null){preloadWork.cancel(true);preloadWork=null;}
+ }
+ private void preload(int token,Entry entry){
+  if(preloadIo==null||!preloadEnabled||entry.seriesId.isEmpty())return;
+  List<Entry> queued=queue;
+  int next=position+1;
+  preloadWork=preloadIo.submit(()->{
+   for(int i=next;i<queued.size();i++){
+    if(token!=generation||Thread.currentThread().isInterrupted())return;
+    Entry item=queued.get(i);
+    JSONObject track=item.manifest.optJSONArray("tracks").optJSONObject(item.index);
+    String decoder=MusicContract.streamingDecoder(track);
+    if(decoder.isEmpty())continue;
+    try(StreamCache.Track lease=streamCache.track(false)){
+     library.streamInputs(item.manifest,track,decoder,lease);
+    }catch(Exception e){return;}
+   }
+  });
+ }
  void loadArtwork(Entry e,JSONObject t,int token){
   if(artworkWork!=null)artworkWork.cancel(true);
   artworkWork=artworkIo.submit(()->{try{File cached=library.cachedPicture(e.game,false,false);if(cached.isFile())publishArtwork(cached,t,e.game,token);if(token!=generation||destroyed||localOnly||!library.networkAllowed())return;File file=library.cover(e.game);if(file.isFile()&&!file.equals(cached))publishArtwork(file,t,e.game,token);}catch(Exception ignored){}});
@@ -174,6 +216,7 @@ public class PlaybackService extends Service {
  }
  void began(int token){if(token!=generation||destroyed||token==startedGeneration)return;startedGeneration=token;rejectedTracks.clear();history.record(position);Entry e=queue.get(position);playedGames.add(e.game.optString("id"));JSONObject track=e.manifest.optJSONArray("tracks").optJSONObject(e.index);
   playedAudio.add(SimilarityRules.key(track));
+  if(library.streaming)preload(token,e);
   if(!track.optString("id").isEmpty())library.preferences.edit()
    .putString("last_game_id",MusicContract.packageId(e.manifest,e.game))
    .putString("last_track_id",track.optString("id")).apply();}
@@ -190,7 +233,7 @@ public class PlaybackService extends Service {
  }
  void finishQueue(String reason){finishQueue(reason,Event.FINISH);}
  void finishQueue(String reason,Event event){
-  generation++;previewRequest++;if(work!=null)work.cancel(true);library.cancelTransfers();releaseMedia();
+  generation++;previewRequest++;cancelPreload();if(work!=null)work.cancel(true);library.cancelTransfers();releaseMedia();
   completionPending=false;state=state.on(event);error=reason;nextGame="";announce();
  }
  void ready(int token){
@@ -226,9 +269,13 @@ public class PlaybackService extends Service {
  }
  void nativePlay(File file,JSONObject track,String engine,List<File> files,JSONObject descriptor,int token)throws Exception {
   int subsong=engine.equals("wav")?0:track.optInt("subsong");
+  renderPcm(track,engine,token,()->new ChipDecoder(this,engine,file,subsong,files,descriptor));
+ }
+ private interface DecoderFactory {ChipDecoder open()throws IOException;}
+ private void renderPcm(JSONObject track,String engine,int token,DecoderFactory factory)throws Exception{
   AudioTrack output=null;
   PowerManager.WakeLock wake=((PowerManager)getSystemService(POWER_SERVICE)).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK,"GremlinAmp:PCM");
-  try(ChipDecoder decoder=new ChipDecoder(this,engine,file,subsong,files,descriptor)){
+  try(ChipDecoder decoder=factory.open()){
    wake.acquire(6*60*60*1000L);
    int rate=decoder.sampleRate();
    int size=Math.max(16384,AudioTrack.getMinBufferSize(rate,AudioFormat.CHANNEL_OUT_STEREO,AudioFormat.ENCODING_PCM_16BIT));
@@ -268,6 +315,7 @@ public class PlaybackService extends Service {
      if(n<=0)throw new IOException("AudioTrack "+n);
      offset+=n;
     }
+    if(library.streaming&&token==generation&&state==PLAYING)audioEnergy.pcm(pcm,samples,rate);
     frames+=samples/2;
     long rendered=frames*1000/rate;main.post(()->{if(token==generation)elapsed=rendered;});
    }
@@ -279,6 +327,7 @@ public class PlaybackService extends Service {
  public void toggle(){if(state.wantsPlayback())pause();else resume();}
  public void pause(){
   if(!state.wantsPlayback())return;
+  if(library.streaming)audioEnergy.reset();
   if(station!=null){
    generation++;if(radio!=null)radio.stop();state=PAUSED;error="";announce();return;
   }
@@ -359,5 +408,5 @@ public class PlaybackService extends Service {
  public void previous(){if(queue.isEmpty())return;rejectedTracks.clear();int index=history.current();if(index<0)index=position;else if(index==position){int previous=history.previous();if(previous>=0)index=previous;}start(index);}
  public long currentPosition(){if(media!=null&&mediaReady)try{return PlaybackRules.position(media.getCurrentPosition(),duration,durationKnown);}catch(IllegalStateException ignored){}return PlaybackRules.position(elapsed,duration,durationKnown);}
  public void seek(long target){if(station!=null||!state.canSeek()||!durationKnown||duration<=0||completionPending)return;target=Math.max(0,Math.min(target,duration));if(media!=null&&mediaReady){try{media.seekTo((int)target);}catch(IllegalStateException ignored){}}else seekTo=target;}
- public void onDestroy(){destroyed=true;generation++;if(work!=null)work.cancel(true);executor.shutdownNow();continuationIo.shutdownNow();if(artworkWork!=null)artworkWork.cancel(true);artworkIo.shutdownNow();library.cancelTransfers();releaseMedia();releaseRadio();main.removeCallbacksAndMessages(null);am.abandonAudioFocusRequest(focus);unregisterReceiver(noisy);session.release();instance=null;super.onDestroy();}
+ public void onDestroy(){destroyed=true;generation++;clearStreamCache();if(preloadIo!=null)preloadIo.shutdownNow();if(work!=null)work.cancel(true);executor.shutdownNow();continuationIo.shutdownNow();if(artworkWork!=null)artworkWork.cancel(true);artworkIo.shutdownNow();library.cancelTransfers();releaseMedia();releaseRadio();main.removeCallbacksAndMessages(null);am.abandonAudioFocusRequest(focus);unregisterReceiver(noisy);session.release();instance=null;super.onDestroy();}
 }

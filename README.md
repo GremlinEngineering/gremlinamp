@@ -107,7 +107,7 @@ Music, game names, posters and other site materials retain their respective righ
 [Arcade](https://games.oopssre.ru/) · [Gremlin media library](https://games.oopssre.ru/gremlin.html) · [Laboratory](https://games.oopssre.ru/lab/) · [Imperial School Engineer](https://oopssre.ru/) · [Telegram](https://t.me/oopsSRE)
 
 
-App updates are opened from the library menu. One action reflects the state: check, cancel an active download, or install a downloaded APK. Optional automatic APK download (hourly or daily after 07:00 Moscow), Wi-Fi or mobile data. Installation requires Android confirmation. APK size, SHA-256, package, version and signing certificate are checked.
+App updates are opened from the library menu. A manual check downloads a new release and opens the Android installer while the update dialog is active. An already downloaded APK can be installed from the same dialog. Automatic downloads can run hourly or daily after 07:00 Moscow time and may use mobile data if enabled. Android validates the APK and asks the user to confirm installation.
 
 Audio continuation: “По ритму” and “По звучанию” use the site analysis index after the current queue finishes. Downloaded-only playback, filters and session history apply. The index is imported into a local database for offline use; a missing server index does not affect ordinary playback. Refresh it with the shared library update command.
 
@@ -131,6 +131,6 @@ Game and series data come from `/music/game-index.json`. Full-library downloads 
 
 ## Radio and queues
 
-The library menu opens Radio in the same player as game music. Playback follows the network setting and can continue in the background. A local build can include a private preset array in `app/src/main/assets/personal-radio.json`; entries contain `title` and an HTTPS `url`. The file is ignored by Git. Settings show Personal mode when those presets are bundled.
+The library menu opens Radio in the same player as game music. Playback follows the network setting and can continue in the background. In the release build, a code in Settings → Personal mode unlocks the personal stations. When building from source, presets come from the local `app/src/main/assets/personal-radio.json`. Each entry has a `title` and an HTTPS `url`. Git ignores this file.
 
 While a series is playing, opening a different series replaces the queue once its tracks are ready. The series header can also start playback directly. The **Across the library** continuation mode includes standalone games and respects filters and the downloaded-only setting. The analysis index refreshes separately from the game catalog and has its own status in queue settings.

@@ -42,42 +42,58 @@ public class MainActivity extends Activity {
  String filterLabel(){int seconds=library.preferences.getInt("short_seconds",0);String mode=library.preferences.getString("unknown_duration","show");return mode.equals("only")?"Без времени":mode.equals("hide")?(seconds>0?"От "+seconds+"с · известные":"Известные"):seconds==0?"Длительность":"От "+seconds+" секунд";}
  void appUpdateSettings(){
   LinearLayout box=new LinearLayout(this);box.setOrientation(1);box.setPadding(dp(12),0,dp(12),0);
-  TextView result=text(AppUpdates.prefs(this).getString("status","Установлена версия 0.2.10"),13,fg);box.addView(result);
-  box.addView(text("Проверка скачает новую версию по выбранной сети. Автоматическое обновление задаётся в настройках; установку подтверждает Android.",12,muted));
-  final boolean[] checking={false};
-  final long[] verifying={-1};
+  String installed="Установлена версия "+AppUpdates.version(this);
+  TextView result=text(installed,13,fg);box.addView(result);
+  box.addView(text("Если есть новая версия, плеер скачает её по выбранной сети и откроет установщик Android.",12,muted));
+  final boolean[] checking={false},installWhenReady={false};
+  final String[] installError={""};
+  final AppUpdates.Inspection[] shown={null};
   Button action=button("Проверить обновление",()->{});box.addView(action);
   AlertDialog dialog=dialogBuilder().setTitle("Обновление приложения").setView(box).setNegativeButton("Закрыть",null).create();
+  java.util.function.LongConsumer install=id->{
+   installError[0]=AppUpdates.install(this,id);
+   if(!installError[0].isEmpty())label(result,installError[0]);
+  };
   Runnable update=()->{
    AppUpdates.Inspection info=AppUpdates.inspection(this,checking[0]);
+   shown[0]=info;
    UpdateRules.Stage stage=info.stage();
    label(action,stage.action);describe(action,stage.action);action.setEnabled(stage.actionable());
-   label(result,stage==UpdateRules.Stage.VERIFYING?"Проверяю размер и подпись APK…":
-    AppUpdates.prefs(this).getString("status","Установлена версия 0.2.10"));
-   if(stage==UpdateRules.Stage.VERIFYING&&verifying[0]!=info.id()){
-    verifying[0]=info.id();io.submit(()->AppUpdates.finishDownload(this,info.id()));
+   label(result,switch(stage){
+    case CHECKING -> "Проверяю обновление…";
+    case READY -> installError[0].isEmpty()?"Обновление скачано · можно установить":installError[0];
+    default -> AppUpdates.prefs(this).getString("status",installed);
+   });
+   if(installWhenReady[0]&&stage!=UpdateRules.Stage.CHECKING&&stage!=UpdateRules.Stage.DOWNLOADING){
+    installWhenReady[0]=false;
+    if(stage==UpdateRules.Stage.READY&&dialog.getWindow()!=null&&dialog.getWindow().getDecorView().hasWindowFocus())
+     install.accept(info.id());
    }
   };
   action.setOnClickListener(v->{
    AppUpdates.Inspection info=AppUpdates.inspection(this,checking[0]);
+   if(!info.equals(shown[0])){installWhenReady[0]=false;update.run();return;}
+   installError[0]="";
    switch(info.stage()){
-    case READY -> {dialog.dismiss();AppUpdates.install(this,info.id());}
+    case READY -> {installWhenReady[0]=false;install.accept(info.id());}
     case DOWNLOADING -> {
+     installWhenReady[0]=false;
      checking[0]=true;update.run();
      io.submit(()->{try{AppUpdates.cancelDownload(this,info.id());}
       finally{runOnUiThread(()->{checking[0]=false;if(dialog.isShowing())update.run();});}});
     }
     case CHECK, RETRY -> {
+     installWhenReady[0]=true;
      checking[0]=true;update.run();
      io.submit(()->{
       try{AppUpdates.check(this);}catch(Exception e){AppUpdates.status(this,"Обновление: "+e.getMessage());}
       finally{runOnUiThread(()->{checking[0]=false;if(dialog.isShowing())update.run();});}
      });
     }
-    case CHECKING, VERIFYING -> { }
+    case CHECKING -> { }
    }
   });
-  Runnable poll=new Runnable(){public void run(){if(!dialog.isShowing()||isFinishing())return;update.run();handler.postDelayed(this,1000);}};dialog.setOnDismissListener(d->handler.removeCallbacks(poll));dialog.show();poll.run();
+  Runnable poll=new Runnable(){public void run(){if(!dialog.isShowing()||isFinishing())return;update.run();handler.postDelayed(this,1000);}};dialog.setOnDismissListener(d->{installWhenReady[0]=false;handler.removeCallbacks(poll);});dialog.show();poll.run();
  }
  boolean downloadsBusy(){return clearingDownloads||downloadStarting||DownloadService.instance!=null;}
  void mainMenu(){List<String> labels=new ArrayList<>();List<Runnable> actions=new ArrayList<>();if(!downloadsBusy()&&!preparingAll){if(!library.archive.hasDownload()){labels.add("Скачать все мелодии");actions.add(this::downloadAll);}labels.add("Обновить библиотеку");actions.add(this::refreshLibrary);}if(!library.preferences.getString("last_track_id","").isEmpty()){labels.add("Последняя композиция");actions.add(this::lastTrack);}if(downloadsBusy()||MusicSyncJob.active!=null||LibraryMaintenanceJob.active!=null||maintenancePending){labels.add("Приостановить загрузку");actions.add(this::pauseDownloads);}if(!clearingDownloads&&(library.hasDownloadedMusic()||DownloadService.instance!=null)){labels.add("Удалить скачанную музыку");actions.add(this::clearDownloadedMusic);}labels.add("Радио");actions.add(this::radioStations);labels.add("Настройки");actions.add(this::settings);labels.add("Обновление приложения");actions.add(this::appUpdateSettings);dialogBuilder().setTitle("Библиотека").setItems(labels.toArray(new String[0]),(d,i)->actions.get(i).run()).show();}
@@ -165,7 +181,7 @@ public class MainActivity extends Activity {
   });
  }
  void settings(){
-  List<String> labels=new ArrayList<>(List.of("Сеть и автоматические обновления","Оформление","О приложении и лицензии"));
+  List<String> labels=new ArrayList<>(Arrays.asList("Сеть и автоматические обновления","Оформление","О приложении и лицензии"));
   if(RadioStations.available(this,true).stream().anyMatch(RadioStations.Station::personal))labels.add("Личный режим");
   dialogBuilder().setTitle("Настройки").setItems(labels.toArray(new String[0]),(d,i)->{
    if(i==0)syncSettings();if(i==1)theme();if(i==2)about();if(i==3)personalRadio();
@@ -173,7 +189,7 @@ public class MainActivity extends Activity {
  }
  void link(String url){try{startActivity(new Intent(Intent.ACTION_VIEW,android.net.Uri.parse(url)));}catch(Exception e){message("Не удалось открыть ссылку");}}
  void about(){ScrollView scroll=new ScrollView(this);LinearLayout box=new LinearLayout(this);box.setOrientation(1);box.setPadding(dp(16),dp(12),dp(16),dp(12));box.setBackgroundColor(bg);scroll.addView(box);
- box.addView(text("Музыка Аркадного зала · 0.2.10",19,fg));box.addView(text("Приложение сайта «Аркадный зал Школы Империи». Автор проекта — Дмитрий Малыхин. Игры и серии читаются из музыкального API v1. Постеры берутся из медиатеки сайта.",14,fg));
+ box.addView(text("Музыка Аркадного зала · "+AppUpdates.version(this),19,fg));box.addView(text("Приложение сайта «Аркадный зал Школы Империи». Автор проекта — Дмитрий Малыхин. Игры и серии читаются из музыкального API v1. Постеры берутся из медиатеки сайта.",14,fg));
  String[][] links={{"Аркадный зал",Library.BASE},{"Профиль и медиатека Гремлина",Library.BASE+"gremlin.html"},{"Лаборатория",Library.BASE+"lab/"},{"Инженер школы Империи","https://oopssre.ru/"},{"Telegram · Инженер школы Империи","https://t.me/oopsSRE"},{"VK","https://vk.ru/club238642156"},{"Права и лицензии сайта",Library.BASE+"license.html"},{"Источники сайта",Library.BASE+"sources.html"},{"Game Music Emu · исходники","https://github.com/libgme/game-music-emu"}};
  for(String[] item:links)box.addView(button(item[0],()->link(item[1])));
  box.addView(button("Исходники на GitHub",this::openSources));box.addView(button("MIT · лицензия кода приложения",()->licenseText("MIT.txt")));box.addView(button("Лицензии компонентов и права материалов",()->licenseText("THIRD_PARTY_NOTICES.txt")));

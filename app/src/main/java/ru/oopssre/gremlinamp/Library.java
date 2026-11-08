@@ -9,14 +9,18 @@ import java.util.*;
 
 class Library {
  static final String BASE="https://games.oopssre.ru/";
- final Context context;final File root;final MusicArchive archive;final android.content.SharedPreferences preferences; volatile boolean cancel;
+ final Context context;final boolean streaming;final File root;final MusicArchive archive;final android.content.SharedPreferences preferences; volatile boolean cancel;
  volatile String downloadSummary="";
  private final Set<HttpURLConnection> transfers=java.util.concurrent.ConcurrentHashMap.newKeySet();
  private final Map<String,Map<String,JSONObject>> pictureIndexes=new HashMap<>();
  private long pictureRevision=-1;
  static final java.util.concurrent.atomic.AtomicLong ART_REVISION=new java.util.concurrent.atomic.AtomicLong();
  interface Progress {void update(String message);}
- Library(Context c){context=c.getApplicationContext();preferences=c.getSharedPreferences("player",0);root=new File(c.getFilesDir(),"library");root.mkdirs();archive=new MusicArchive(this);}
+ Library(Context c){this(c,false);}
+ Library(Context c,boolean streaming){
+  this.streaming=streaming;context=c.getApplicationContext();preferences=c.getSharedPreferences("player",0);
+  root=new File(c.getFilesDir(),"library");if(!streaming)root.mkdirs();archive=new MusicArchive(this);
+ }
  static String resolve(String base,String path) throws IOException {
   URI u=URI.create(base).resolve(path).normalize();
   if(!"https".equals(u.getScheme())||!"games.oopssre.ru".equals(u.getHost())||u.getPort()!=-1||u.getUserInfo()!=null)throw new IOException("Недопустимая ссылка");
@@ -78,9 +82,22 @@ class Library {
   if(offline!=null)return offline;
   throw new IOException("Музыкальный каталог пока недоступен",failure);
  }
- JSONObject catalog(boolean refresh)throws Exception{return MusicContract.catalog(index(refresh,false));}
+ JSONObject catalog(boolean refresh)throws Exception{
+  if(!streaming)return MusicContract.catalog(index(refresh,false));
+  try{return MusicContract.catalog(onlineJson(MusicContract.INDEX));}
+  catch(IOException e){if(!"HTTP 404".equals(e.getMessage()))throw e;}
+  JSONObject gallery=onlineJson(BASE+"assets/gallery-music.json");
+  JSONArray series=new JSONArray();
+  try{series=onlineJson(BASE+"assets/statistics.json").getJSONArray("series");}catch(Exception ignored){}
+  return MusicContract.streamingGallery(gallery,series);
+ }
  JSONObject manifest(JSONObject game,boolean refresh)throws Exception {
   String url=resolve(BASE,game.getString("manifest"));
+  if(streaming){
+   JSONObject manifest=onlineJson(url);
+   if(manifest.optInt("schema_version")!=1)throw new IOException("Версия музыкального альбома не поддерживается");
+   return manifest.put("_url",url);
+  }
   JSONObject packaged=archive.playlist(url);
   if(packaged!=null)return packaged;
   return json(url,refresh).put("_url",url);
@@ -147,6 +164,10 @@ class Library {
   return assets;
  }
  JSONObject decoderInput(JSONObject manifest,JSONObject track,List<File> files)throws Exception{
+  return decoderInput(manifest,track,asset->files.add(fetch(manifest,asset)));
+ }
+ private interface AssetReader {void read(JSONObject asset)throws Exception;}
+ private JSONObject decoderInput(JSONObject manifest,JSONObject track,AssetReader reader)throws Exception{
   JSONArray paths=new JSONArray();
   List<JSONObject> inputs=assets(track);
   Set<String> names=new HashSet<>();
@@ -161,11 +182,52 @@ class Library {
    path=MusicContract.safePath(path);
    if(!names.add(path))throw new IOException("Повторяющийся путь библиотеки декодера");
    paths.put(path);
-   files.add(fetch(manifest,asset));
+   reader.read(asset);
   }
   return new JSONObject().put("paths",paths).put("track",track).put("rate",44100)
    .put("gain",MusicContract.gain(track))
    .put("renderMs",PlaybackRules.total(track.optLong("play_ms",120000),track.optLong("fade_ms",0)));
+ }
+ record StreamInputs(List<byte[]> buffers,JSONObject descriptor) {}
+ StreamInputs streamInputs(JSONObject manifest,JSONObject track,String decoder,StreamCache.Track lease)throws Exception{
+  if(decoder.equals("site")){
+   List<byte[]> buffers=new ArrayList<>();
+   JSONObject descriptor=decoderInput(manifest,track,asset->buffers.add(bufferedAsset(manifest,asset,lease)));
+   return new StreamInputs(buffers,descriptor);
+  }
+  return new StreamInputs(Collections.singletonList(bufferedAsset(manifest,playbackAsset(track),lease)),null);
+ }
+ private byte[] bufferedAsset(JSONObject manifest,JSONObject asset,StreamCache.Track lease)throws Exception{
+  checkCancelled();
+  return lease.get(asset.getString("sha256"),asset.getLong("bytes"),()->streamAsset(manifest,asset));
+ }
+ private byte[] streamAsset(JSONObject manifest,JSONObject asset)throws Exception{
+  requireNetwork();checkCancelled();
+  long size=asset.getLong("bytes");
+  String expected=asset.getString("sha256");
+  if(size<=0||size>StreamCache.LIMIT||!expected.matches("[a-f0-9]{64}"))throw new IOException("Трек превышает лимит буфера ТВ или повреждён");
+  String url=resolve(manifest.getString("_url"),asset.getString("url"));
+  HttpURLConnection connection=(HttpURLConnection)new URL(url).openConnection();
+  connection.setConnectTimeout(12000);connection.setReadTimeout(15000);connection.setInstanceFollowRedirects(false);
+  transfers.add(connection);
+  try{
+   checkCancelled();
+   int status=connection.getResponseCode();
+   if(status!=200)throw new IOException("HTTP "+status);
+   byte[] data=new byte[(int) size];
+   try(InputStream input=connection.getInputStream()){
+    int offset=0;
+    while(offset<data.length){
+     checkCancelled();int n=input.read(data,offset,Math.min(32768,data.length-offset));
+     if(n<0)throw new EOFException("Трек передан не полностью");
+     offset+=n;
+    }
+    if(input.read()!=-1)throw new IOException("Неверный размер трека");
+   }
+   checkCancelled();
+   if(!hash(data).equals(expected))throw new IOException("Проверка SHA-256 не пройдена");
+   return data;
+  }finally{transfers.remove(connection);connection.disconnect();}
  }
  boolean savedTrack(JSONObject manifest,JSONObject track)throws Exception{
   for(JSONObject asset:assets(track))if(!available(manifest,asset))return false;
@@ -383,7 +445,7 @@ class Library {
  }catch(Exception e){return false;}}
  static final java.util.concurrent.locks.ReentrantLock DOWNLOAD_LOCK=new java.util.concurrent.locks.ReentrantLock();
  static final java.util.concurrent.atomic.AtomicLong revision=new java.util.concurrent.atomic.AtomicLong();
- boolean networkAllowed(){return NetworkPolicy.allowed(context,preferences.getString("network","wifi"));}
+ boolean networkAllowed(){return NetworkPolicy.allowed(context,streaming?"any":preferences.getString("network","wifi"));}
  void requireNetwork()throws IOException {if(!networkAllowed())throw new IOException("Ожидание разрешённой сети");}
 
  File jsonFile(String url)throws Exception{return new File(root,"json/"+hash(url.getBytes(java.nio.charset.StandardCharsets.UTF_8))+".json");}
