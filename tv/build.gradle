@@ -1,0 +1,37 @@
+plugins { id 'com.android.application' }
+
+android {
+    namespace 'ru.oopssre.gremlinamp'
+    compileSdk 35
+    buildToolsVersion '35.0.0'
+    defaultConfig {
+        applicationId 'ru.oopssre.gremlinamp.tv'
+        minSdk 26
+        targetSdk 35
+        versionCode 3
+        versionName '0.1.2'
+    }
+    sourceSets.main {
+        java.srcDirs += ['../app/src/main/java']
+        res.srcDirs += ['../app/src/main/res']
+        assets.srcDirs += ['../app/src/main/assets']
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    implementation "androidx.core:core:1.8.0"
+    implementation "androidx.media3:media3-exoplayer:1.8.1"
+    implementation "androidx.media3:media3-exoplayer-hls:1.8.1"
+}
+
+tasks.named('preBuild').configure {
+    doFirst {
+        if (!rootProject.file('app/src/main/assets/site-engine/archive-sha256.txt').isFile()) {
+            throw new GradleException('Import music_player.zip with tools/import-site-engine.py before building.')
+        }
+    }
+}

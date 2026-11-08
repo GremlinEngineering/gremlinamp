@@ -47,6 +47,39 @@ final class MusicContract {
                 .put("by_ra_id", index.getJSONObject("by_ra_id"));
     }
 
+    static JSONObject streamingGallery(JSONObject gallery, JSONArray groups) throws Exception {
+        if (gallery.getInt("schema_version") != 1) throw new IOException("Версия медиатеки не поддерживается");
+        JSONArray games = new JSONArray(), series = new JSONArray();
+        java.util.Map<String, String> byHref = new java.util.HashMap<>();
+        Set<String> known = new HashSet<>();
+        JSONArray rows = gallery.getJSONArray("games");
+        for (int i = 0; i < rows.length(); i++) {
+            JSONObject row = rows.getJSONObject(i);
+            if ("theme".equals(row.optString("category")) || row.optInt("track_count") <= 0) continue;
+            String id = row.getString("id"), url = Library.resolve(Library.BASE, row.getString("manifest"));
+            archivePath(url);
+            known.add(id);
+            if (!row.optString("href").isEmpty()) byHref.put(row.optString("href"), id);
+            games.put(new JSONObject(row.toString()).put("manifest", url));
+        }
+        for (int i = 0; i < groups.length(); i++) {
+            JSONObject group = groups.getJSONObject(i);
+            JSONArray members = group.optJSONArray("members");
+            if (members == null || group.optBoolean("personal")) continue;
+            JSONArray ids = new JSONArray();
+            Set<String> used = new HashSet<>();
+            for (int j = 0; j < members.length(); j++) {
+                JSONObject member = members.getJSONObject(j);
+                String id = byHref.get(member.optString("href"));
+                if (id == null) id = "game-ra-" + member.optLong("ra_id");
+                if (known.contains(id) && used.add(id)) ids.put(id);
+            }
+            if (ids.length() > 0) series.put(new JSONObject().put("id", group.getString("id"))
+                    .put("title", group.getString("name")).put("game_ids", ids));
+        }
+        return new JSONObject().put("games", games).put("series", series);
+    }
+
     static String archivePath(String url) throws IOException {
         String path = URI.create(url).getPath();
         if (path == null || !path.startsWith("/music/")) throw new IOException("Файл вне музыкального каталога");
@@ -98,6 +131,15 @@ final class MusicContract {
         // Downloaded playlists written by older clients retain their existing media backend.
         if (backend.equals("media") && Arrays.asList("mp3", "ogg", "flac", "m4a", "aac").contains(format)) return "media";
         return "";
+    }
+
+    static String streamingDecoder(JSONObject track) {
+        String engine = decoder(track);
+        return switch (engine) {
+            case "gme" -> NATIVE.contains(track.optJSONObject("asset").optString("format").toLowerCase(Locale.ROOT)) ? "site" : "";
+            case "media" -> "";
+            default -> engine;
+        };
     }
 
     static double gain(JSONObject track) {

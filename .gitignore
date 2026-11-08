@@ -13,3 +13,5 @@ app/src/main/assets/site-engine/
 
 # Personal presets belong only in the locally built APK.
 /app/src/main/assets/personal-radio.json
+
+/tv/build/

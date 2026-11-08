@@ -10,6 +10,12 @@ import androidx.media3.common.MediaItem;
 import androidx.media3.common.PlaybackException;
 import androidx.media3.common.Player;
 import androidx.media3.common.util.UnstableApi;
+import androidx.media3.common.audio.AudioProcessor;
+import androidx.media3.exoplayer.DefaultRenderersFactory;
+import androidx.media3.exoplayer.audio.AudioSink;
+import androidx.media3.exoplayer.audio.DefaultAudioSink;
+import androidx.media3.exoplayer.audio.TeeAudioProcessor;
+import java.nio.ByteBuffer;
 
 import static ru.oopssre.gremlinamp.TransportState.Event;
 import androidx.media3.datasource.DefaultHttpDataSource;
@@ -26,15 +32,17 @@ final class RadioPlayback {
     private final Context context;
     private final Handler main;
     private final BooleanSupplier networkAllowed;
+    private final AudioEnergy energy;
     private ExoPlayer player;
     private Player.Listener listener;
     private Runnable monitor;
     private long bufferingSince;
 
-    RadioPlayback(Context context, Handler main, BooleanSupplier networkAllowed) {
+    RadioPlayback(Context context, Handler main, BooleanSupplier networkAllowed, AudioEnergy energy) {
         this.context = context;
         this.main = main;
         this.networkAllowed = networkAllowed;
+        this.energy = energy;
     }
 
     // All commands and listener callbacks run on the service's main looper.
@@ -48,7 +56,9 @@ final class RadioPlayback {
             if (player == null) {
                 DefaultHttpDataSource.Factory http = new DefaultHttpDataSource.Factory()
                         .setUserAgent("GremlinAmp").setConnectTimeoutMs(7000).setReadTimeoutMs(8000);
-                player = new ExoPlayer.Builder(context).setLooper(main.getLooper())
+                ExoPlayer.Builder builder = energy == null ? new ExoPlayer.Builder(context)
+                        : new ExoPlayer.Builder(context, visualizerRenderers());
+                player = builder.setLooper(main.getLooper())
                         .setMediaSourceFactory(new DefaultMediaSourceFactory(http)).build();
                 // The service shares one audio focus request with game music.
                 player.setAudioAttributes(new AudioAttributes.Builder().setUsage(C.USAGE_MEDIA)
@@ -96,6 +106,26 @@ final class RadioPlayback {
         } catch (RuntimeException e) {
             fail(callback, "Не удалось запустить радио");
         }
+    }
+
+    private DefaultRenderersFactory visualizerRenderers() {
+        return new DefaultRenderersFactory(context) {
+            @Override protected AudioSink buildAudioSink(Context context, boolean floatOutput, boolean playbackParams) {
+                TeeAudioProcessor tap = new TeeAudioProcessor(new TeeAudioProcessor.AudioBufferSink() {
+                    private int rate, channels;
+                    @Override public void flush(int rate, int channels, int encoding) {
+                        this.rate = rate;
+                        this.channels = encoding == C.ENCODING_PCM_16BIT ? channels : 0;
+                        energy.reset();
+                    }
+                    @Override public void handleBuffer(ByteBuffer buffer) {
+                        if (channels > 0) energy.pcm(buffer, rate, channels);
+                    }
+                });
+                return new DefaultAudioSink.Builder(context).setAudioProcessors(new AudioProcessor[]{tap})
+                        .setEnableAudioTrackPlaybackParams(playbackParams).build();
+            }
+        };
     }
 
     private void fail(Callback callback, String error) {

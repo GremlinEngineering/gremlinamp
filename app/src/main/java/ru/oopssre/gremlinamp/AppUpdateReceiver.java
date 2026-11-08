@@ -18,6 +18,6 @@ public class AppUpdateReceiver extends BroadcastReceiver {
      MusicSyncJob.schedule(context,true);LibraryMaintenanceJob.schedule(context);
     }else AppUpdates.finishDownload(context,id);
    }finally{result.finish();}
-  },"verify-apk").start();
+  },"apk-update-result").start();
  }
 }

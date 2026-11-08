@@ -1,1 +1,1 @@
-package android.content; public class Intent {public Intent(){} public Intent(Context c,Class<?> t){} public String getStringExtra(String k){return null;} public Intent putExtra(String k,String v){return this;}}
+package android.content; public class Intent {public Intent(){} public Intent(Context c,Class<?> t){} public Intent setClassName(Context context,String name){return this;} public String getStringExtra(String k){return null;} public Intent putExtra(String k,String v){return this;}}

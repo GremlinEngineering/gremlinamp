@@ -35,7 +35,9 @@ final class SiteDecoder implements AutoCloseable {
 
     private final Handler main = new Handler(Looper.getMainLooper());
     private final Context context;
-    private final List<File> files;
+    private interface Input { InputStream open(int index) throws IOException; }
+    private final Input input;
+    private final int inputCount;
     private final String descriptor;
     private WebView view;
     private volatile boolean closed;
@@ -57,8 +59,17 @@ final class SiteDecoder implements AutoCloseable {
     }
 
     SiteDecoder(Context context, List<File> files, JSONObject descriptor) throws IOException {
+        this(context, files.size(), index -> new FileInputStream(files.get(index)), descriptor);
+    }
+
+    static SiteDecoder streaming(Context context, List<byte[]> buffers, JSONObject descriptor) throws IOException {
+        return new SiteDecoder(context, buffers.size(), index -> new ByteArrayInputStream(buffers.get(index)), descriptor);
+    }
+
+    private SiteDecoder(Context context, int inputCount, Input input, JSONObject descriptor) throws IOException {
         this.context = context.getApplicationContext();
-        this.files = files;
+        this.input = input;
+        this.inputCount = inputCount;
         this.descriptor = JSONObject.quote(descriptor.toString());
         try {
             main.post(this::boot);
@@ -115,7 +126,7 @@ final class SiteDecoder implements AutoCloseable {
             try {
                 if (path.startsWith("/input/")) {
                     int index = Integer.parseInt(path.substring(7));
-                    if (index >= 0 && index < files.size()) return response("application/octet-stream", new FileInputStream(files.get(index)));
+                    if (index >= 0 && index < inputCount) return response("application/octet-stream", input.open(index));
                 } else if (path.startsWith("/site/") || path.startsWith("/host/")) {
                     String name = MusicContract.safePath(path.substring(6));
                     boolean engine = path.startsWith("/site/");

@@ -19,6 +19,12 @@ final class ChipDecoder implements AutoCloseable {
         handle = wav == null && site == null ? Gme.open(file.toString(), subsong) : 0;
     }
 
+    ChipDecoder(Context context, String engine, Library.StreamInputs inputs) throws IOException {
+        wav = engine.equals("site") ? null : new WavPcm(inputs.buffers().get(0));
+        site = engine.equals("site") ? SiteDecoder.streaming(context, inputs.buffers(), inputs.descriptor()) : null;
+        handle = 0;
+    }
+
     int sampleRate() { return wav == null ? SiteDecoder.RATE : wav.rate; }
 
     void render(short[] samples) throws IOException {
