@@ -1,0 +1,7 @@
+Gremlin browser Atari music-ROM playback 0.3
+Atari 2600: Tia core, https://github.com/warmenhoven/tia
+Atari 7800: ProSystem, https://github.com/libretro/prosystem-libretro
+Original authors and all notices are preserved in ATARI_0_3_SOURCE.zip.
+New bridge source: src/atari_bridge.c, GPL-2.0-or-later.
+No BIOS files, commercial game ROMs or soundtrack assets are bundled.
+Other decoders, sources and license notices remain unchanged.

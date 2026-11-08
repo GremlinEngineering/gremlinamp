@@ -1,0 +1,1 @@
+Combined standalone decoder: GPL-2.0-or-later. FuseZ80 copyright PhilipKendall etal; MednafenSHA256 copyright MednafenTeam. Original MAME TMS320C1x/BSMT2000 algorithms: BSD-3-Clause; notices retained. Complete corresponding source and build scripts: ../BSMT_BMS_0_16_SOURCE.zip.

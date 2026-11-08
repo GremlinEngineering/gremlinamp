@@ -1,0 +1,16 @@
+{
+  "core": "Original FreeIntv Intellivision CP1610/PSG",
+  "commit": "ef3e0fe322bec62a7f916c0bb0834c08c348d0b4",
+  "core_changes": false,
+  "default_options": true,
+  "outputs": {
+    "gremlin-iv.js": {
+      "bytes": 57530,
+      "sha256": "8cac5f3e4694b3f4ae21998e75de2dda972a40dba14f4545db1b156394e21a9f"
+    },
+    "gremlin-iv.wasm": {
+      "bytes": 588947,
+      "sha256": "517efea6f6959f487a5d742fac883270bb945a670b2abf90b24b21dda122a110"
+    }
+  }
+}

@@ -1,0 +1,1 @@
+Combined standalone decoder: GPL-2.0-or-later (Mednafen SHA256). Original MAME MC6809/ES5506 algorithms BSD-3-Clause; copyright notices retained. Full corresponding source/build scripts: ../ENSONIQ_E6M_0_17_SOURCE.zip.

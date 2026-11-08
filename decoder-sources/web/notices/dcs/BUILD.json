@@ -1,0 +1,18 @@
+{
+  "core": "DCSExplorer strict ADSP2105 original ROM interpreter",
+  "upstream_commit": "3d2220f58406756293b9552b7df0b264969b7061",
+  "speedups": false,
+  "ADSP_interpreter_source_unchanged": true,
+  "board_adapter": "Original arcade DCS2K/UART DM3400..37ff latch; original pinball PM3000 remains supported",
+  "original_ROM_notes_sequences_compressed_streams_unchanged": true,
+  "outputs": {
+    "gremlin-dcs.js": {
+      "bytes": 19297,
+      "sha256": "64d2b0d455b26ac9b95d32d1fc158028c9783c84ee63ad20fd6486acdedad637"
+    },
+    "gremlin-dcs.wasm": {
+      "bytes": 293933,
+      "sha256": "83b8dce69f0c05ae00ba2bc9f71a883893a477f71e947fc4c60eb69209ba8f0b"
+    }
+  }
+}

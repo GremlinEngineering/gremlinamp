@@ -1,0 +1,9 @@
+Gremlin browser VGM/VGZ core 0.2
+Upstream libvgm: ValleyBell and the original emulator authors.
+https://github.com/ValleyBell/libvgm
+Commit 61b62d64455e039de2a1d01498afa9e9b5f1cb88; Emscripten 6.0.13.
+Complete corresponding source, wrapper and build instructions: LIBVGM_0_2_SOURCE.zip.
+All original per-file copyright and licence notices are retained in that archive.
+New VGM code does not change the licences of the preserved GME, broad or GSF components.
+Their notices and sources remain in source.zip, LGPL-2.1.txt and ADDITIONAL_CODECS_SOURCE.zip.
+The inherited broad/GSF source snapshot has documented rebuild limitations; see its SOURCE_NOTES.txt.

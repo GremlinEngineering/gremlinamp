@@ -1,0 +1,16 @@
+{
+  "core": "Original full FCEUmm NES/FDS/Vs. System",
+  "commit": "e0f3086a8104f8fbbe49a2615b10401504a9533f",
+  "core_source_changes": false,
+  "original_ROM_BIOS_and_sound_programs": true,
+  "outputs": {
+    "gremlin-nf.js": {
+      "bytes": 58752,
+      "sha256": "ac17c81486db9fc7288a2f8a27b592c693916c88249a4ffc0110b14c7fd51f81"
+    },
+    "gremlin-nf.wasm": {
+      "bytes": 1096944,
+      "sha256": "e88655bd872b051f62df167afd3f3a49f919f5cd560bf78f9f38cfa7d4076d6c"
+    }
+  }
+}

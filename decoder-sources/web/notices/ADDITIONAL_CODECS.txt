@@ -1,0 +1,19 @@
+Gremlin music player · additional decoder components 0.1
+
+vgmplay-js-2: https://github.com/niekvlessert/vgmplay-js-2
+Pinned commit: d90b4bdf9d36ade871c66de642fe37cd7b0c7633
+Components include libvgm, Game Music Emu, libkss, sexypsf, lazyusf,
+libsidplayfp, OpenMPT, ssfplay_tools, Highly Theoretical and vgmstream.
+The original copyright and licence notices of each component apply.
+The top-level MIT notice does not replace component-specific licences.
+
+GSF: Web-Chiptune-Player by Thysbelon; gsf2wav/lazygsf by John Regan;
+mGBA by Jeffrey Pfau (MPL 2.0); psflib by Christopher Snowhill (ISC).
+https://github.com/Thysbelon/Web-Chiptune-Player
+Pinned commit: e2319ae4bddabb3d2e7b4251a281e3970948b49e
+
+Original source snapshots, copyright and licence texts:
+ADDITIONAL_CODECS_SOURCE.zip (same directory as this text).
+Individual hashes and provenance: ADDITIONAL_CODECS.json.
+These are unmodified upstream WebAssembly builds, tested in a browser.
+No independent complete rebuild of all cores is claimed; see SOURCE_NOTES.txt.

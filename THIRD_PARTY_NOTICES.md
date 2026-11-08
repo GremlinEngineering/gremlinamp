@@ -17,7 +17,7 @@ The local YM2413 adapter (gme/Ym2413_Emu.cpp and its header) replaces the disabl
 
 ## Site WebAssembly decoder bundle
 
-The decoder modules and original notices are imported from the project's `music_player.zip`. The import preserves the original worker and runtime files. Corresponding source packages and their provenance records are in the same site bundle under `music_player/vendor/`. Each component retains its own license. The MIT license covers the GremlinAmp adapter and application code.
+The decoder modules and original notices are imported from the project's `music_player.zip`. The import preserves the original worker and runtime files. See [Decoder sources for GremlinAmp Android](decoder-sources/README.md) for source archives, license notices, build details and the inventory for the phone and Android TV releases. Each component retains its own license. The MIT license covers the GremlinAmp adapter and application code.
 
 ## Internet radio playback
 

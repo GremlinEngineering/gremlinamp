@@ -1,0 +1,513 @@
+{
+  "apks": {
+    "GremlinAmp-0.2.11.apk": {
+      "decoder_host": {
+        "assets/decoder-host/bridge.js": "9feab61ac9a58d66230c3f175e0e5237b4394f530303f9d442e76a7101a5848a",
+        "assets/decoder-host/index.html": "5b6af2c5cf9eba5fcc6cd19e124b866203527bb346c97f316f90e96aef9e6eea"
+      },
+      "native_libraries": {
+        "lib/arm64-v8a/libgremlinamp.so": "c1669ed470d23c7bfc680203a1cb9f3e88d4df01adfb2bf918a3b68a060daed0",
+        "lib/armeabi-v7a/libgremlinamp.so": "ade84379f92a15acc49219c27791684aab7f435d970ab7227f18124dc6009332",
+        "lib/x86_64/libgremlinamp.so": "a198c2e5d626929e75770209a0a4733697a83bc4fd5f7a93e6a05b364ebec0df"
+      },
+      "sha256": "d81ebd010c139474dbb35465c64a807d36c8364211673e858614ec92291d6ef6"
+    },
+    "GremlinAmp-TV-0.1.2.apk": {
+      "decoder_host": {
+        "assets/decoder-host/bridge.js": "9feab61ac9a58d66230c3f175e0e5237b4394f530303f9d442e76a7101a5848a",
+        "assets/decoder-host/index.html": "5b6af2c5cf9eba5fcc6cd19e124b866203527bb346c97f316f90e96aef9e6eea"
+      },
+      "native_libraries": {},
+      "sha256": "4502061304073b0fedbb850d62024727d9eff47ca1b630b98c0def647bc81798"
+    }
+  },
+  "music_player_zip_sha256": "0074e542d389410e74db9320b23fdca33f43e16e3948677d1e942f1ca26dae8a",
+  "native_game_music_emu_git_tree": "0cf2be331c782e5a4ebeef96f2b8cec7166a98d7",
+  "shared_site_engine": {
+    "a5-worker.js": "1995d0221e19e1b4362ccc67e9a0f28aee25b5723a243cd891ba38ccce6bd349",
+    "archive-sha256.txt": "59d0380ef760693a02455a9e6a551455d2ae831af7a0160190e7fa5d704cd97c",
+    "astro-worker.js": "55d80b06332df0c4a7cbee93a722dc841f47b9db9a44110d9ba0466bded02f6d",
+    "atari-worker.js": "b0854ff7f9d0b96e6d1680f32fb13529074f47dc6f7c3f1bcf8fdab76155082e",
+    "bsmt-worker.js": "651609ae6dafd78f822c43ef7089304280948d795ecd04ff0776a371758e8d4b",
+    "codec-worker.js": "33e6a187fc6993136dced949089b2583a097a69fa9ca7f458771990ab592cb45",
+    "cps3-worker.js": "410e214b262689e5abc6c55b679310f51a5fcdd0db3c4f40f9afffa6bd8bf7ff",
+    "dcs-worker.js": "d0b294b76555650c595a9f058cb979bc82bceaabb6c83731bac37c393ca81a4e",
+    "decoders.js": "edaba0ce5e0616bb328aed75386b3882a32707b8b832f99b9097e4c6ce12f647",
+    "dkong-worker.js": "7ee2c44236b57faaaaf14f36f6e693e946e4c1c66651aae46a6afa8dc58a8960",
+    "enson-worker.js": "f352fe6789579cd2f3ff840aeeb3fc44b61ef99cf91c28409e62a611537e92e3",
+    "f3-worker.js": "ab5c94141d063f80524f98eca65bc9db5bfcc49aeb1081be57dbfce719abaafc",
+    "g0-worker.js": "5e9d1b6f8f544ec85aac7f5da68667c3f741bfabcf05532da43ceea8c1d575be",
+    "gba-worker.js": "66fd58b681fb14e979ca72aa796d69098eae8434ef2ef3a4243bafb90025b34c",
+    "gbc-worker.js": "c598b55bcbf8726f232b7c46fe3d0c57b7336c88cecd937f83c84d912e80c08a",
+    "gme-plus-worker.js": "ebc46d04a8e3cb40dfe1e13681ecd6e689df125a10bc05a7e75e4d473cc6efb2",
+    "gme-worker.js": "67da696adb68acd8490b573d759caf01c0309b45e3179eb576f3ee402e771b39",
+    "iv-worker.js": "da24a5017a0c82555b40a177ff9ff90282b5b3a09a9695e5ecfcbf60815da4b4",
+    "jaguar-worker.js": "537c05aeeb2c99710c81fdbf416f170865b7ca88cfe176ea01e5585a3cc90011",
+    "k0-worker.js": "a0963657a8dd90064dccfeae3767d48f5fbb6d88baa39addfc116ad77a488a2e",
+    "ki-worker.js": "0f859bb514c2509112cc35fa5534ab9844846c4d2b99c34d92ca5e1c0b9b4c4f",
+    "libvgm-worker.js": "c4b171abc6579e7ad6cbfbfd09b6ffd3b2397c55a234fa30385ca508dc7fab86",
+    "lynx-worker.js": "d513a9be3426b2e21d032aebc88155a627906274ccf3e1d27f1637b4bff0283b",
+    "mario-worker.js": "3af75e9ff3a0a41cecb7ca86b09c3cdc0941ef16803d25acaa4157f689e21430",
+    "md-worker.js": "6dc652bb94b82f44d42c1b278035fb703608cac5ae65c79577e7e058594f94c6",
+    "model2-worker.js": "abc14e25c49d22dde62607500567ec12f1f9b1b117cbbb9b2d006bc24620d165",
+    "namco-worker.js": "e5fcc189c695c2c60238ed5f1bc8efd1275bc67a8e3031c6e64d967bce78db2e",
+    "nf-worker.js": "52391ffeaf5cbd35cfd0465d8e148144fce2bf48b41ab4e9d82648a667e9a700",
+    "ngp-worker.js": "5b9034320a57108a91bd786c643147721e79f72938f4489dd1af20db43f04735",
+    "spt-worker.js": "8296f316bccb6e93abbab5be075db1bf923a9bf15541b9129955e87512d4c4b9",
+    "st-worker.js": "fb97fa23f7117274803f465916bd1c2c297b0e4834090b4cc29320f902773b85",
+    "sv-worker.js": "08729903dab7b150cbadd654ba36415ead3e0a7480abd45250fad55c286bb1c1",
+    "theme-snes-worker.js": "493e6714b3a2124794565f381cfc77c88b9059d8c1dc5731fa4c5ae210d15c2b",
+    "vendor/ADDITIONAL_CODECS.json": "3dad5dc76c30701334a8eb061572c47cfd6265a9878f4c3fc538f4c71aec33bc",
+    "vendor/ADDITIONAL_CODECS.txt": "7ebc1b1e2c9d67127b0751c0711f0c7562c68ba54815e03c4c3ab74dff4ba6de",
+    "vendor/ADDITIONAL_CODECS_SOURCE_LOCATION.txt": "5081d58ee92eb0d74d3f4eac3bd0ee6b45b74cba1a1e1ca6e4ca4eba26ba9e43",
+    "vendor/ATARI_0_3.json": "6abadd68e32c3bd10479d4989fdea667089bcd6e2de66a11f8e682fae2f68d81",
+    "vendor/ATARI_0_3.txt": "a8e6b3342672f32ffa94e444243e5ea00f13079526608fbbf29c8053754d5c1b",
+    "vendor/EMU2413_LICENSE.txt": "8fb093f26ed0d78c8ca033bbec7063ac5b34c5d2475e6bd121d03ccfaaf2355f",
+    "vendor/GME_PLUS_0_10.json": "28ab353150d025b2b76cf5c1019b55929142e8ac60dd741cc7645baaf259e053",
+    "vendor/LGPL-2.1.txt": "d2efc89fbb7533572a472d34e07964951810a3a4f8d3159ecc2dcaa1452c5c26",
+    "vendor/LIBVGM_0_2.json": "d962a37fcddfc2b5b9300fb42dcd9656c5b7aa3dfa57b00c4fb3f6a7f48d7ca8",
+    "vendor/LIBVGM_0_2.txt": "d70b0f88a4680ace9b420b4498b575d8d4fa879819e5513595f112eaa26413ce",
+    "vendor/LIBVGM_0_8.json": "228465f46384e8328584dcc08a1d2a0f7737eaa0fa908d8277485a2bbc35a790",
+    "vendor/LIBVGM_0_8.txt": "52faf79340eb2e813891397dd6351ffb1aaf45796549a9a64acd4969ba1a4728",
+    "vendor/LIBVGM_0_9.json": "a28c32766e3c7cf6b170321044477c78fe158d8e8465fbc43c9aeaea428f2d2f",
+    "vendor/LIBVGM_0_9.txt": "130fe88a490f812c67cf6d4add877a30b5dfbf30d3156de2009c1c60d128cce9",
+    "vendor/PROVENANCE.json": "1d78606ef2028defd15d9a624ac9c3b6e4c36efa49b12200fb58d0bdbaf2ab1b",
+    "vendor/a5/BUILD.json": "2cb2b552482da68e582c3557f13e762280713a979400f7dd89436199d03bd8f4",
+    "vendor/a5/FORMAT.txt": "a300c840a95aa199c043c2b4879315784010ca8bc0dfd39b26acb21416ae8fa9",
+    "vendor/a5/LICENSE.txt": "63755afa640d0ae54e295a7290ebc28aaa3bacb8b3a87ccc15e19d17a5beb896",
+    "vendor/a5/gremlin-a5.js": "09b0a2e4d8c9b33a5fcf6954e3fdbff3773f899e760ef9eb432d13a48e8ed5cb",
+    "vendor/a5/gremlin-a5.wasm": "d362591f065eee87c75b738c4c192193866948577927aebb07b514518e954540",
+    "vendor/astro/COPYING-GPL-2.0.txt": "a6996dcf0c334281f734560926e079b2dbbd5b78e81c0ca00a413ec01e1cd2fb",
+    "vendor/astro/FORMAT.txt": "497b1e326a02119f47c92375a4adfd3381aa340968a27091287518b1eb644693",
+    "vendor/astro/LICENSE-MAME.txt": "0b96274c1cb350f69918cd44f79e5c39ec84498753b14061d2d080f002702a2c",
+    "vendor/astro/LICENSE.txt": "aef62006f24a527674916b6875a265710a818fcbc459a718761ca32a6d4ba88d",
+    "vendor/astro/gremlin-acm.js": "f4a6f93e252d9fb053b4a24809418727811ebdf890ed6cc92a726aebac5b14ee",
+    "vendor/astro/gremlin-acm.wasm": "cf7e660187a4f77d700cc7250b70ed324b6a16f78d5bcc7bb38351656284821f",
+    "vendor/atari/gremlin-prosystem.js": "4cd820bc82e9122a14739181e9155ef304b0caf33cf2e8f193bebc5999d30686",
+    "vendor/atari/gremlin-prosystem.wasm": "db23bd633ccc36da18bfd8144f287f8a816bc9c78d136d91a9fc2b3a07ed8779",
+    "vendor/atari/gremlin-tia.js": "17c1a99638b381bd427987cfd3820de4d93468c1a378b28bc669d03cfdb0fd09",
+    "vendor/atari/gremlin-tia.wasm": "a3a70edf7d33df8cc29f5266d986e2e9589866f5019adbbd9f6247b7fa0e4e70",
+    "vendor/broad/vgmplay-js.data": "ae269d34f45f378497374c2bda64f07c43832cb1158aa70a76242a535243d688",
+    "vendor/broad/vgmplay-js.js": "02043d1800bf951b893dfe103062bcd069c2d86230c0be6f7d159fe2943a9d4a",
+    "vendor/broad/vgmplay-js.wasm": "8dcdae772957eb60aa8545df36413abe6e940f60a7f89866e76d9bf698d7da5e",
+    "vendor/bsmt/COPYING-GPL-2.0.txt": "a6996dcf0c334281f734560926e079b2dbbd5b78e81c0ca00a413ec01e1cd2fb",
+    "vendor/bsmt/FORMAT.txt": "e02ae77b4a861424a03846f255b8bc7d8ab58c68dfe7a82c207a3df940d3790b",
+    "vendor/bsmt/LICENSE-MAME.txt": "f16872abb3d2696af2260bbf4936e742cb85406cac65223bdd4700a8591d4065",
+    "vendor/bsmt/LICENSE.txt": "4971c754822a6117074fffaa5af08f847a287ef1d19108a36e78d46c756929ab",
+    "vendor/bsmt/gremlin-bms.js": "a79ea6a3b6edc2e59013abd5068db86259b615e579fac14ebf7c23dac8efdb8b",
+    "vendor/bsmt/gremlin-bms.wasm": "cf835adcb947c165cfce5727b8e6960bde9896bc6252421b7f5d1d165504b2b3",
+    "vendor/cps3/BUILD.json": "541792e5a71060fd6473b6f0e2a4929732e6b467f70bddc242a1271d55d92e85",
+    "vendor/cps3/FORMAT.txt": "8c85a577022c10bd19d848f50b4880945e308286f82a91a693d54d603154bba3",
+    "vendor/cps3/LICENSE-BSD-3-CLAUSE.txt": "9f6f806c4741193587ca49a6e4e0cc929eb5ca618fb2571566d5c3f64253d199",
+    "vendor/cps3/gremlin-cps3.js": "64d66ce038c2b8878a8a9ec67274fbe9b47ca41f73c130f959fdeb0d4ba6072e",
+    "vendor/cps3/gremlin-cps3.wasm": "0089e180f09c96ebd1a96a345ef06dcf856b7371ebc4c2e73906b3d96f441775",
+    "vendor/dcs/ADSP_SOURCE_NOTES.txt": "00b46b77ed6dbc19256278d44cca610d6837fe352ee169f792883f89a491591c",
+    "vendor/dcs/BUILD.json": "d322c637cba9cdd110848e2affeb15bd5935087dd76b46032923945aecb64091",
+    "vendor/dcs/FORMAT.txt": "7246d87846640cb8d8847b29cb0e9f10e0d7ed627215d8534cdeb4e9d27e022f",
+    "vendor/dcs/LICENSE.txt": "6940d3e97f2daf8d4761f923f6b2887d66c9279e9292198dacc0b4609c0a04d0",
+    "vendor/dcs/gremlin-dcs.js": "64d2b0d455b26ac9b95d32d1fc158028c9783c84ee63ad20fd6486acdedad637",
+    "vendor/dcs/gremlin-dcs.wasm": "83b8dce69f0c05ae00ba2bc9f71a883893a477f71e947fc4c60eb69209ba8f0b",
+    "vendor/dkong/BUILD.json": "44d2d809e9d38ea927ee414283fa89504faa3e411107bedfd9d6f7ae51471dd5",
+    "vendor/dkong/FORMAT.txt": "43efc702be452ad74f88b79e6ded3feb4591f3c2aac4ca833f8594007063009d",
+    "vendor/dkong/LICENSE-BSD-3-CLAUSE.txt": "9e821cf5ee24f00e4ecfba4828c2317e45fba477d1a9b8c6158c544d3a5bac04",
+    "vendor/dkong/LICENSE-EMSCRIPTEN.txt": "620a78084fc7ca97c0b5dea9abf891f3ffcadfdbf305276f099c9c4e12fc1d86",
+    "vendor/dkong/LICENSE-LIBCXX.txt": "539dd7aed86e8a4f12cbdd0e6c50c189c7d74847e4fecc64ce2c6ee3a01da38b",
+    "vendor/dkong/LICENSE-LIBCXXABI.txt": "e2b35be49f7284a45b7baca8fc7b3ab7440e7902392b2528a457816b5bb2a15c",
+    "vendor/dkong/LICENSE-MUSL.txt": "b870108ec5e7790e9f9919064f1b9421d62d5f9b0e6c230c6adf7ea2da62e97b",
+    "vendor/dkong/gremlin-dkong.js": "c0bd0514dfaef2f98a46fc851320a2f252da335e57a1e38360656aca99e9ca7f",
+    "vendor/dkong/gremlin-dkong.wasm": "5c0a01b5d133c3b19701af3a9e60d405db8b53a29e0ad59e4f19ad8583cb0a11",
+    "vendor/enson/COPYING-GPL-2.0.txt": "a6996dcf0c334281f734560926e079b2dbbd5b78e81c0ca00a413ec01e1cd2fb",
+    "vendor/enson/FORMAT.txt": "dea88bfbff6ea433f607f5bf6249c00433d0100d8cb644ed4f5246ceb842c4b2",
+    "vendor/enson/LICENSE-MAME.txt": "8da7d22dcdf59e296f4ba418884dbfc8d954fb38a629b8586f6aace7e94e99c4",
+    "vendor/enson/LICENSE.txt": "0bad5985613093cc8d874d70a8673fed9c43cbc9b2f4cf8f1a011d45dfa4db22",
+    "vendor/enson/gremlin-e6m.js": "e8052dbc6a17b663e82dbfcac68cdec52ddb3cc8d95e7a03f699a363af19be83",
+    "vendor/enson/gremlin-e6m.wasm": "15365ed9952f417eddafea605d76a21b52d0f238dc26a20588410e7f96f16658",
+    "vendor/f3/BUILD.json": "a0e8e8d03bd72f36169771a53163d39b0b7054cee7c1e986504889acdd3675cd",
+    "vendor/f3/COPYING-GPL-2.0.txt": "a6996dcf0c334281f734560926e079b2dbbd5b78e81c0ca00a413ec01e1cd2fb",
+    "vendor/f3/FORMAT.txt": "dea9f671310c0551c4e2de7cdc207797afde9c584d7db97385b33b588e7ffc5e",
+    "vendor/f3/INITIALIZATION_FIX_RU.txt": "36d949dad24e3d4fef979c274611793ffe9a58b1bd13445988560321256e3ae0",
+    "vendor/f3/LICENSE-MAME.txt": "365d481e52894f3159a061b143ee7ae1aad13e34b2c4b58325a7360587a9321b",
+    "vendor/f3/LICENSE.txt": "84129698d106240c0631df944b44f460a607fe8a4ac956aa31d52d18e63b285f",
+    "vendor/f3/gremlin-f3.js": "10c140fa7325b39d81dbeebc5a6f5e556f9ee6c257bf562ce45267050a66e4e8",
+    "vendor/f3/gremlin-f3.wasm": "b7cc5331e50e90a91b8cb3093364e8405cf507a213b34c61e10fd13b76426fd2",
+    "vendor/g0/BUILD.json": "c44fdfcca8457b5790bf1b51f308c4ff516c4475e8c254d75f72f21ae10b96a0",
+    "vendor/g0/LICENSE.txt": "0068d05d1df70ab372905fa6e1b0e4c51e3e8d97581eb0ee22ea7225faf0c1e6",
+    "vendor/g0/UPSTREAM.json": "971b529f7551c30e652440c5fd45f05e1100194a2ba245a186ee5255aba8b3ad",
+    "vendor/g0/gremlin-g0.js": "e9531fed8fe04b92096c643f744bb950e10e867945d4dc6686c2dcffb5309039",
+    "vendor/g0/gremlin-g0.wasm": "5f90e714121b93f9f2f484a85ed212535ee91272787e3eb2fecf9ca26eef6494",
+    "vendor/gba/BUILD.json": "51fa0068bfd9ca14cd312934dcff72118b033e56e8f57ad59fbbb69408f4dbcc",
+    "vendor/gba/LICENSE": "fab3dd6bdab226f1c08630b1dd917e11fcb4ec5e1e020e2c16f83a0a13863e85",
+    "vendor/gba/gremlin-gba.js": "93620a9c5e0e5f649556283e2e9f49488380ba99c153a6491bd5f0b83beb7791",
+    "vendor/gba/gremlin-gba.wasm": "7300d34c84714868ccfa0cb5c8dd306f86a4aeeb9f811945724a0a56bc01c5ac",
+    "vendor/gbc/BUILD.json": "3b0f47da0eddd2f569d33deb5327aedd0ab904f5567da1e0fde914c6112d4b5c",
+    "vendor/gbc/COPYING": "ab15fd526bd8dd18a9e77ebc139656bf4d33e97fc7238cd11bf60e2b9b8666c6",
+    "vendor/gbc/gremlin-gbc.js": "b9229b374c4aa1ae6b2561fee55ef197a9e929e6a574f38d83c2282dae26ee6c",
+    "vendor/gbc/gremlin-gbc.wasm": "beeb97e42a7ad4feded4ac66be9e5b549059191f87b70ccb676a86aaad64a9c6",
+    "vendor/gme-plus/BUILD.json": "28ab353150d025b2b76cf5c1019b55929142e8ac60dd741cc7645baaf259e053",
+    "vendor/gme-plus/gme-plus.js": "e8138d2fe3bd3165f611a4b680fa083d2078eb62a14590bd9d6be42aa83a4487",
+    "vendor/gme-plus/gme-plus.wasm": "17dfdd11095c0119679dca433a7a8fdfd525181c57959cb55dad5176b9e0df0a",
+    "vendor/gsf/gsf2wav.js": "0cfb6023c225cdff9d3c46c0a8e20bfff0fae75920dcf11e1a170c4cbc0c2082",
+    "vendor/gsf/gsf2wav.wasm": "b50a7cacf676990ce5bf5b31b81a6c3d38a5835e5c19a1f8443dfe252276a400",
+    "vendor/iv/BUILD.json": "84dd8299eb0c4b2b7a3405253fe76c3b0a4fa79b1ad01b1a51704a8a6cb2d029",
+    "vendor/iv/gremlin-iv.js": "8cac5f3e4694b3f4ae21998e75de2dda972a40dba14f4545db1b156394e21a9f",
+    "vendor/iv/gremlin-iv.wasm": "517efea6f6959f487a5d742fac883270bb945a670b2abf90b24b21dda122a110",
+    "vendor/jaguar/BUILD.json": "54f3a23fdaad8b5201a5cb964a48ad181f1f2bf6af2cde88993964d1c21ad228",
+    "vendor/jaguar/COPYING-GPL-3.0.txt": "8ceb4b9ee5adedde47b31e975c1d90c73ad27b6b165a1dcd80c7c545eb65b903",
+    "vendor/jaguar/FORMAT.txt": "444060563812b81242c40ff2dcf9c4aed44288da3100129d219534aafd6e0d7d",
+    "vendor/jaguar/RAYMAN_084_ACCEPTANCE.txt": "9605f6d2a88b47015868bb5ffd9ad87f303c3c7dd9e82614a63fdf5332f4292c",
+    "vendor/jaguar/SOURCE_NOTICE.txt": "529305e7e2d96ce38c9dde0ab71f2d40edc2447dccfcb186857173134e7731cb",
+    "vendor/jaguar/gremlin-jaguar.js": "6503a1c1c339e55235a183fbf0c7f22a47ba9d7292b0aab4622b8ec88c8ff806",
+    "vendor/jaguar/gremlin-jaguar.wasm": "bad8acf0209607d197f1b0c54f0ac955223db741c5a503ca02167eb11169c848",
+    "vendor/k0/BUILD.json": "246095f1c62415313a39de550419411ab44ba574a7d950324f82d5782635190c",
+    "vendor/k0/LICENSE.txt": "b2fe4036ead72d93c7456cff57cd6865d43a5e45c07cb54a07ffddcc5c388357",
+    "vendor/k0/README.txt": "74ac1d9221c047d1dd39fed5ec63e35d9c13e4dec287ffb682bbcdf30fa86bd3",
+    "vendor/k0/SOURCE_PROOF.json": "d3a811e3b2ec9c3d040009b4959c5e464a77e8a8f7671442cb709c86c2b866a3",
+    "vendor/k0/gremlin-k0.js": "1dc1dfd1eba4921a83c0ed64205da2e9170983544220fc0f41e7167e835cfde3",
+    "vendor/k0/gremlin-k0.wasm": "83ec2f1eacf27032f330c6aa3246fb1c75c8804d8b6c59b3a8080c3ed030a12c",
+    "vendor/ki/COPYING-GPL-2.0.txt": "a6996dcf0c334281f734560926e079b2dbbd5b78e81c0ca00a413ec01e1cd2fb",
+    "vendor/ki/FORMAT.txt": "fb50cce9c9fee4d7c2110b215fc8d468892a2988273a0bc37dc68aa7ba756066",
+    "vendor/ki/LICENSE-MAME.txt": "d148efad9857173fba89e050d713c3c131a598e0d5a7c971033fbf5f64afecb7",
+    "vendor/ki/LICENSE.txt": "c2c254b4a79f7a8c55ba607652eb284f2c5fcaa67cfd34cf6ece2f942f5335ba",
+    "vendor/ki/gremlin-ki.js": "dc6e7a7165f14ca21ddb51efd1d569910202b119dddf0ff5688bf21533c985cd",
+    "vendor/ki/gremlin-ki.wasm": "0c2d7a8041820ab4b10a4ea44d7cb77b55ea9e4e5ee2f75e5db990b58954ccb7",
+    "vendor/libgme.js": "23b4cf18b33c2129b5ed6dd5a2794c7b8d62dccad9c587f4e99c0c6f71cac4ff",
+    "vendor/libgme.wasm": "dd46c3843e4f2ac39ed0ce1d630f3d5a3c9c73d6af742083ecc7fbd9f37503fd",
+    "vendor/libvgm/BUILD.json": "a28c32766e3c7cf6b170321044477c78fe158d8e8465fbc43c9aeaea428f2d2f",
+    "vendor/libvgm/gremlin-libvgm.js": "f4b29555d8b26fd9c0562d367c2fc9d29063305036d7375c62e113fc95a31d73",
+    "vendor/libvgm/gremlin-libvgm.wasm": "51241e59e9a41bf9f41d1ab1bf2f663ba9ff4b926be6ef4b17d95e7c68377cfb",
+    "vendor/lynx/BLIP_LGPL-2.1.txt": "d2efc89fbb7533572a472d34e07964951810a3a4f8d3159ecc2dcaa1452c5c26",
+    "vendor/lynx/BUILD.json": "95dca3e15bf26dad06be403cc2ce2284245273b065cc93eee4bd6a2cdefa2fb6",
+    "vendor/lynx/LSM_FORMAT_1.md": "79b8f93315c3d82520f420344da0207b42c5e215d850488feb9aa37de9dae7e3",
+    "vendor/lynx/gremlin-lsm.js": "add5f23a187ac112048c0783ea417c2365d482c2a161190312833dedbc905100",
+    "vendor/lynx/gremlin-lsm.wasm": "95ed17dfaf5939f03876288b8f012afd8fbd1fc392e63133cf7c614288360f0b",
+    "vendor/mario/BUILD.json": "a5041f4df81e7985621624b0dda84dd38318149ba83d5ba34aa0b181d74ebae8",
+    "vendor/mario/FORMAT.txt": "cc0df7e420d7843c17b8b64137515e2de02080965883a5b604194259bf3708e6",
+    "vendor/mario/LICENSE-BSD-3-CLAUSE.txt": "893ad027df30ce9e3270e8104b06236601ef7b3140b124e7b522dcaaccac6629",
+    "vendor/mario/LICENSE-EMSCRIPTEN.txt": "620a78084fc7ca97c0b5dea9abf891f3ffcadfdbf305276f099c9c4e12fc1d86",
+    "vendor/mario/LICENSE-LIBCXX.txt": "539dd7aed86e8a4f12cbdd0e6c50c189c7d74847e4fecc64ce2c6ee3a01da38b",
+    "vendor/mario/LICENSE-LIBCXXABI.txt": "e2b35be49f7284a45b7baca8fc7b3ab7440e7902392b2528a457816b5bb2a15c",
+    "vendor/mario/LICENSE-MUSL.txt": "b870108ec5e7790e9f9919064f1b9421d62d5f9b0e6c230c6adf7ea2da62e97b",
+    "vendor/mario/gremlin-mario.js": "a53010ed0505b9316dbccb38cf2a9fc3a3ff6cff6ec2729cc6d77dd0f7fafa98",
+    "vendor/mario/gremlin-mario.wasm": "77f3bdc7482c515155c1fa47c1014b976cc846c433ae78159588152cd15c3005",
+    "vendor/md/BUILD.json": "15c4a056f6e6af44a8268699d13650d5fe4930c774a571006bac8417ce6e2545",
+    "vendor/md/COPYING": "a36c54a119673c1b40233f55ff23c39042f35c3e798ce78aafba5d6bd9c19de4",
+    "vendor/md/gremlin-md.js": "f4874de166e779bcf856c2b5006b1369402c751ab0a843085a6c7bf82bc1c694",
+    "vendor/md/gremlin-md.wasm": "cacc3097a1fabfb3b437c49a54b9e3cb73b92e8cecf9f864479f15f02d8b4c22",
+    "vendor/model2/COPYING": "8177f97513213526df2cf6184d8ff986c675afb514d4e68a404010521b880643",
+    "vendor/model2/M2S_FORMAT_1.txt": "0ca9d86a4870570822ae4eb7ff016e79d9e6627d3e0ad42ee7615fc9ce13da7b",
+    "vendor/model2/gremlin-m2s.js": "6466294e5cbd43be2a1471695e98cea0630c8673b88a88dbab3c90e07d3ae225",
+    "vendor/model2/gremlin-m2s.wasm": "31a8630b4cef7e0764f75f783249ab54e4e63d8082a51d0d7ead5c7c006e4ae3",
+    "vendor/namco/LICENSE.txt": "001893e8546dd65c89ee2f76e7024ac450c1c93b8973091fc55458104bbf6ddc",
+    "vendor/namco/NAMCO_BUILD.json": "072194799e39a05c60bed5a8eb5576358b4e3e0e9dddf0f855e09546fb9d1a16",
+    "vendor/namco/NWS_FORMAT_1.md": "da8f295bc48f96f56ae18184cbff15c63eb83ff0aea558dc713b2414b9bb12a4",
+    "vendor/namco/namco-wsg.js": "73486eb010455e3fdfd89ca8f4a45b4bf272b070ae7c6fbe4119778c651fa5c2",
+    "vendor/namco/namco-wsg.wasm": "470379383ac374037a6f1bdf73062d54b96a130bbada157658af29fee0567bb3",
+    "vendor/nf/BUILD.json": "60d246a2d5753e4bf71b6891051fb792ce074757b1fc33de72bc987ffcf8854b",
+    "vendor/nf/COPYING-GPL-2.0.txt": "a6996dcf0c334281f734560926e079b2dbbd5b78e81c0ca00a413ec01e1cd2fb",
+    "vendor/nf/gremlin-nf.js": "ac17c81486db9fc7288a2f8a27b592c693916c88249a4ffc0110b14c7fd51f81",
+    "vendor/nf/gremlin-nf.wasm": "e88655bd872b051f62df167afd3f3a49f919f5cd560bf78f9f38cfa7d4076d6c",
+    "vendor/ngp/BUILD.json": "a37c532ff36e278e37b759858057c9685b0f8aa1290dc7ad4f2c8175e371ca67",
+    "vendor/ngp/NEOPOP_GPL-2.0.txt": "a6996dcf0c334281f734560926e079b2dbbd5b78e81c0ca00a413ec01e1cd2fb",
+    "vendor/ngp/NGL_FORMAT_1.md": "84ceb23099671a0bfb50dc9a256afd9d4a8958fc0109f8bcef7722597bb3c949",
+    "vendor/ngp/T6W28_BLIP_LGPL-2.1.txt": "d2efc89fbb7533572a472d34e07964951810a3a4f8d3159ecc2dcaa1452c5c26",
+    "vendor/ngp/gremlin-ngl.js": "dc36fc65c1fb6538c200c004389cdefa5cfa95013d0140e584ba4e68ea720cc5",
+    "vendor/ngp/gremlin-ngl.wasm": "f9a057be03d79b6130e8abe0ac3d1c15f9dda82109174cf32e1b7af53cdc37cb",
+    "vendor/spt/BUILD.json": "3b56df1920a56aacc325ca7f2be8cf6810275a52c1fcd7f73f8499f3374b879a",
+    "vendor/spt/LGPL-2.1.txt": "d2efc89fbb7533572a472d34e07964951810a3a4f8d3159ecc2dcaa1452c5c26",
+    "vendor/spt/SNES9X_LICENSE.txt": "70efeee282d82a6e9d26aeed5466d08c632369858371dc6a4644c8dcedc2be78",
+    "vendor/spt/SPT_FORMAT_1.md": "ea4c127f419c42d4d1704be4e154318b371483a710cc87f3b72eec1b0b5623ad",
+    "vendor/spt/gremlin-spt.js": "714b962b80e34029dc1487e69f47c8eb95f6181f5d72fb32c2512afd7f3bf08b",
+    "vendor/spt/gremlin-spt.wasm": "5c74465ddac9b09b86fbc801a89586a2cc908a7422b49df868290e9247858e56",
+    "vendor/st/BUILD.json": "9aca407cb489672150b2ea909ecd76def3a242f8dd5ba2a04e7dcbab635ff90f",
+    "vendor/st/gremlin-st.js": "288aab19a53ef3c8782e180f10618c2726bc9f33b03c517efc357559cd8e4ec8",
+    "vendor/st/gremlin-st.wasm": "992d69654ce6086f459bd1845bc31e84a28de2d8c6184b1f43e6b62bb09b5de4",
+    "vendor/sv/BUILD.json": "8287633fa0f7a6af0432fb92fd391bdd09a2bd7a8c6be08c9546a65be5232f87",
+    "vendor/sv/gremlin-sv.js": "527c33ce6bbb11d6823bd85b1b07e7453719c392e0d302bace7d5b63fc4e7e89",
+    "vendor/sv/gremlin-sv.wasm": "db3ba87af74c5a5e32c45a26d27bcf04d34a8145cf171830424422bd0d3e7b5e",
+    "vendor/theme-snes/LICENSE": "20c17d8b8c48a600800dfd14f95d5cb9ff47066a9641ddeab48dc54aec96e331",
+    "vendor/theme-snes/theme-snes.js": "4475afe240e013dde17ea565edbba969c772b920509a619470c625b254f0f088",
+    "vendor/theme-snes/theme-snes.wasm": "213d3ba9f5ff6cf5bda2dc4232722700c731418d875eda2902adfdebb2b1d238",
+    "vendor/vx/BUILD.json": "62d7d2833d8ec210761c394c55cc139093bb9a09c2a9a9f2e0adc2da1b6a5138",
+    "vendor/vx/gremlin-vx.js": "5633bc2c202dc41fed4e0593ece03506f6dc376cc7a0ae5cf28059f8309ce5f7",
+    "vendor/vx/gremlin-vx.wasm": "3b2b15320712a095d7bf86be950d0c75211e1c9dd478849aa704c75167d35fc2",
+    "vendor/ws/BUILD.json": "e6c8d6505c234c284fec59bcc423e110f7e3ac0aa5d97f4c7c9a33c143660680",
+    "vendor/ws/HEADROOM_BUILD_120.json": "828adfb62cca2c4f585378941fb99eea15b58ede2a187b3819ecfc08d603a8d8",
+    "vendor/ws/gremlin-ws-headroom.js": "0f04534ef92fc9b459312310c4ecc4e261aceedd8288fb82f6022a8e35102f83",
+    "vendor/ws/gremlin-ws-headroom.wasm": "6138f5161dd0a024b973355686befb6cc974178d472bee0f17a1f7552747b9ee",
+    "vendor/ws/gremlin-ws.js": "f4b53c0c01ca35ac3f7083dedd8424e9ed1645f68188dc92480a6415663f0382",
+    "vendor/ws/gremlin-ws.wasm": "21cf20b53b28122d2511cbe6e80c32b7e1227c45e83297b7ed9cf61922063837",
+    "vendor/wsr/gremlin-wsr.js": "d90b2d2a6315665e73b33e4b2881914827a2d6c567f188ba712e98106393f3f5",
+    "vendor/wsr/gremlin-wsr.wasm": "51c40e7e8a4703e5d69eb9756df87076aafeda7012716ac5758aa7d302f7f0ea",
+    "vx-worker.js": "46d90c2b71449cc8f24dc81158e221c2a9261cf2bba5912a03b82e99f787e669",
+    "ws-worker.js": "e1f3eb33ecb9d36f0b76c2c2b85da0d7bcec813a81a87ec94dc91f6e0e550245",
+    "wsr-worker.js": "d9a3da68cfc3213315b0d977de49e8d9c03663d8b669fddbea53b22b0f2684e9"
+  },
+  "source_archive_sha256": {
+    "A5_121_CORRESPONDING_SOURCE.zip": "c61e99942196ae63e703ac91308b7aac3e933e76e944cfa7491ff0fee6046db8",
+    "ASTROCADE_ACM_0_18_SOURCE.zip": "be877ea1f99e1961b91b2b4f969e45f8803ff221ab4a8f9b25fdb435a74bb556",
+    "ATARI_0_3_SOURCE.zip": "4a2a6e0111ad80737b38c25582b3a7c3d343c1cf89d4172184845379f577cc9c",
+    "BSMT_BMS_0_16_SOURCE.zip": "fb2c055e02821f361b72acc378e42acf4bea6f14d8185432516703eb6335ee5d",
+    "CPS3_078_SOURCE.zip": "ac17b9906c639075d9f6bcf201c994cbb8a50ccffda9775aa9c492f322b06f53",
+    "DCS_121_CORRESPONDING_SOURCE.zip": "7cd78ec5d9ce636c281a6779406fcd8bdfa2c3968512ffb08ff5875e39936587",
+    "DKONG_076_SOURCE.zip": "2ad937a3e77304acfe033249a48af1c4576cc1ed38f47bde59265f2d4fdeedf2",
+    "ENSONIQ_E6M_0_17_SOURCE.zip": "13818b642c4cfc56d2f6d676466f5d43ac906cb9f15c9419d63fa4f8a638663c",
+    "GALAXIAN_G0_0_39_SOURCE.zip": "3d942a6c2cc4c2156b2e7779fa75f33d5b8a45af0d9290bcc2e1d0a15cadfc62",
+    "GBA_103_CORRESPONDING_SOURCE.zip": "21d11bfbd2a7f59b96552035a9584664577c1c38d23d1e53a5a919563eec8744",
+    "GBC_095_CORRESPONDING_SOURCE.zip": "dbbe7ec907696f2c662491c29be652d6836cc3d3438fde4e3c2e8b3133cbd42c",
+    "GME_PLUS_0_10_SOURCE.zip": "058322a9ce195c64f6b9433af0e453c5b338b43760c216991ebad812d3e5bd9d",
+    "IV_109_CORRESPONDING_SOURCE.zip": "26a2549788afe07793fd37ce3bba597388602894c9b15736cc985259860c1cf0",
+    "JAGUAR_082_SOURCE.zip": "1db30d4d2c99c6e10bdac9afe38f93304eb66341835958edbda47e80b5d685a6",
+    "KETSUI_ICS2115_0_20_SOURCE.zip": "487c78e4775b1f52e25e7da3c2cf53125078e28e8ca954e7a4033323ff3a36a4",
+    "KONAMI_K005289_K0_0_39_SOURCE.zip": "b74c2d9a1c2dbf0bba801c87d0e15c91f4b453883c746f7234073921a3e2632f",
+    "LIBVGM_0_9_SOURCE.zip": "0fe11f832311874be45f9d66e9a04d4e59dd764e1854831662c56144ebcc327e",
+    "LYNX_LSM_0_13_SOURCE.zip": "8c2584fdcf43d2a13ca6b2b2ebaa20571ad09c3b21ac86c7ed171eede4fa7880",
+    "MARIO_077_SOURCE.zip": "0d1efc33b9ad094e7f782b8df064200d4d08693a8f7dca57d82f935809f4410c",
+    "MD_099_CORRESPONDING_SOURCE.zip": "9cb93ad2fe08b0c092bf28db7ccadf1b63e4fce328c8ad95dae47d18f4124ba5",
+    "MODEL2_M2S_0_15_SOURCE.zip": "da3a5b927e4cc70645351fc5adf629881b7fcf413181bc32579226fba87acab9",
+    "NAMCO_CUS30_0_12_SOURCE.zip": "261a4691c0826351cdc946752d033d4aeb62d29bbe7aaa9cb6537a3f4c6a5632",
+    "NF_120_CORRESPONDING_SOURCE.zip": "2b45dec58bde53086ffcf039805e7d9a808d3e22cdba4e768f8e18cc36b0489f",
+    "NGP_NGL_0_14_SOURCE.zip": "77d1a2bf85bdd3ecfaf35cd8d8a250e3e7dcf872f8d5534ed2c6eb270cdda7f1",
+    "SPT_0_11_SOURCE.zip": "e11f2df84bb517433b49e79a82251cda0c7d9bd58a16c5b5b6c1ffdd5eda41e0",
+    "ST_111_CORRESPONDING_SOURCE.zip": "b3f59377d038cb9a4af25f6a44f31352dd6e9990d7a666fb07a41dabe3dcc47d",
+    "SV_113_CORRESPONDING_SOURCE.zip": "5afbc2a1797deed08e69153e405d6d2193fcf5d88e64509ff99f300f98d3aac7",
+    "TAITO_F3_0_21_SOURCE.zip": "071e6ba0dccb3b928fb156ca13029590afcaf9394d1378f5040ce39e88b5c33f",
+    "VX_115_CORRESPONDING_SOURCE.zip": "ba61dadecf419bf52fbc63942367e2e6e2db57a70286ef5825f0e1c6d19cc58b",
+    "WSR_0_5_SOURCE.zip": "eb43496f4ea72c0c3d9b97871b152b4dc70b1fd7036cc6a1c558a1a524af7f23",
+    "WS_107_CORRESPONDING_SOURCE.zip": "1f1c3023a6febe75953e90aa528a25123112b4046eb6989b69cb5ac7e9e30184",
+    "gsf-source.zip": "bb6155ede4b47ff1b2623aaba7b49b0af3068eb9e3b7a115515f03800563883c",
+    "openmpt-source.zip": "4b07f3644b9582a1012f98fd094511b5381177da187abf11feef1bbf5ba6320e",
+    "theme-snes-source.zip": "02d5ad96e771bd6def4a1b57e293a3634747608385711728f75b28117622cfbc",
+    "vgmplay-js-2-source.zip": "bb0193daaa30af6b2b7edeb1533869ce55d9679889db8312b297df6dc9e619da"
+  },
+  "wasm_sources": {
+    "vendor/a5/gremlin-a5.wasm": {
+      "sha256": "d362591f065eee87c75b738c4c192193866948577927aebb07b514518e954540",
+      "sources": [
+        "archives/A5_121_CORRESPONDING_SOURCE.zip"
+      ]
+    },
+    "vendor/astro/gremlin-acm.wasm": {
+      "sha256": "cf7e660187a4f77d700cc7250b70ed324b6a16f78d5bcc7bb38351656284821f",
+      "sources": [
+        "archives/ASTROCADE_ACM_0_18_SOURCE.zip"
+      ]
+    },
+    "vendor/atari/gremlin-prosystem.wasm": {
+      "sha256": "db23bd633ccc36da18bfd8144f287f8a816bc9c78d136d91a9fc2b3a07ed8779",
+      "sources": [
+        "archives/ATARI_0_3_SOURCE.zip"
+      ]
+    },
+    "vendor/atari/gremlin-tia.wasm": {
+      "sha256": "a3a70edf7d33df8cc29f5266d986e2e9589866f5019adbbd9f6247b7fa0e4e70",
+      "sources": [
+        "archives/ATARI_0_3_SOURCE.zip"
+      ]
+    },
+    "vendor/broad/vgmplay-js.wasm": {
+      "sha256": "8dcdae772957eb60aa8545df36413abe6e940f60a7f89866e76d9bf698d7da5e",
+      "sources": [
+        "archives/vgmplay-js-2-source.zip",
+        "archives/openmpt-source.zip"
+      ],
+      "upstream_sources": [
+        "https://github.com/niekvlessert/hoot_remake/tree/35a7fa1c4b75af26e3fecb80175d6a6ba8f790bf"
+      ]
+    },
+    "vendor/bsmt/gremlin-bms.wasm": {
+      "sha256": "cf835adcb947c165cfce5727b8e6960bde9896bc6252421b7f5d1d165504b2b3",
+      "sources": [
+        "archives/BSMT_BMS_0_16_SOURCE.zip"
+      ]
+    },
+    "vendor/cps3/gremlin-cps3.wasm": {
+      "sha256": "0089e180f09c96ebd1a96a345ef06dcf856b7371ebc4c2e73906b3d96f441775",
+      "sources": [
+        "archives/CPS3_078_SOURCE.zip"
+      ]
+    },
+    "vendor/dcs/gremlin-dcs.wasm": {
+      "sha256": "83b8dce69f0c05ae00ba2bc9f71a883893a477f71e947fc4c60eb69209ba8f0b",
+      "sources": [
+        "archives/DCS_121_CORRESPONDING_SOURCE.zip"
+      ]
+    },
+    "vendor/dkong/gremlin-dkong.wasm": {
+      "sha256": "5c0a01b5d133c3b19701af3a9e60d405db8b53a29e0ad59e4f19ad8583cb0a11",
+      "sources": [
+        "archives/DKONG_076_SOURCE.zip"
+      ]
+    },
+    "vendor/enson/gremlin-e6m.wasm": {
+      "sha256": "15365ed9952f417eddafea605d76a21b52d0f238dc26a20588410e7f96f16658",
+      "sources": [
+        "archives/ENSONIQ_E6M_0_17_SOURCE.zip"
+      ]
+    },
+    "vendor/f3/gremlin-f3.wasm": {
+      "sha256": "b7cc5331e50e90a91b8cb3093364e8405cf507a213b34c61e10fd13b76426fd2",
+      "sources": [
+        "archives/TAITO_F3_0_21_SOURCE.zip"
+      ]
+    },
+    "vendor/g0/gremlin-g0.wasm": {
+      "sha256": "5f90e714121b93f9f2f484a85ed212535ee91272787e3eb2fecf9ca26eef6494",
+      "sources": [
+        "archives/GALAXIAN_G0_0_39_SOURCE.zip"
+      ]
+    },
+    "vendor/gba/gremlin-gba.wasm": {
+      "sha256": "7300d34c84714868ccfa0cb5c8dd306f86a4aeeb9f811945724a0a56bc01c5ac",
+      "sources": [
+        "archives/GBA_103_CORRESPONDING_SOURCE.zip"
+      ]
+    },
+    "vendor/gbc/gremlin-gbc.wasm": {
+      "sha256": "beeb97e42a7ad4feded4ac66be9e5b549059191f87b70ccb676a86aaad64a9c6",
+      "sources": [
+        "archives/GBC_095_CORRESPONDING_SOURCE.zip"
+      ]
+    },
+    "vendor/gme-plus/gme-plus.wasm": {
+      "sha256": "17dfdd11095c0119679dca433a7a8fdfd525181c57959cb55dad5176b9e0df0a",
+      "sources": [
+        "archives/GME_PLUS_0_10_SOURCE.zip"
+      ]
+    },
+    "vendor/gsf/gsf2wav.wasm": {
+      "sha256": "b50a7cacf676990ce5bf5b31b81a6c3d38a5835e5c19a1f8443dfe252276a400",
+      "sources": [
+        "archives/gsf-source.zip"
+      ]
+    },
+    "vendor/iv/gremlin-iv.wasm": {
+      "sha256": "517efea6f6959f487a5d742fac883270bb945a670b2abf90b24b21dda122a110",
+      "sources": [
+        "archives/IV_109_CORRESPONDING_SOURCE.zip"
+      ]
+    },
+    "vendor/jaguar/gremlin-jaguar.wasm": {
+      "sha256": "bad8acf0209607d197f1b0c54f0ac955223db741c5a503ca02167eb11169c848",
+      "sources": [
+        "archives/JAGUAR_082_SOURCE.zip"
+      ]
+    },
+    "vendor/k0/gremlin-k0.wasm": {
+      "sha256": "83ec2f1eacf27032f330c6aa3246fb1c75c8804d8b6c59b3a8080c3ed030a12c",
+      "sources": [
+        "archives/KONAMI_K005289_K0_0_39_SOURCE.zip"
+      ]
+    },
+    "vendor/ki/gremlin-ki.wasm": {
+      "sha256": "0c2d7a8041820ab4b10a4ea44d7cb77b55ea9e4e5ee2f75e5db990b58954ccb7",
+      "sources": [
+        "archives/KETSUI_ICS2115_0_20_SOURCE.zip"
+      ]
+    },
+    "vendor/libgme.wasm": {
+      "sha256": "dd46c3843e4f2ac39ed0ce1d630f3d5a3c9c73d6af742083ecc7fbd9f37503fd",
+      "sources": [
+        "../app/src/main/cpp/game-music-emu",
+        "web/build-web-decoder.sh"
+      ]
+    },
+    "vendor/libvgm/gremlin-libvgm.wasm": {
+      "sha256": "51241e59e9a41bf9f41d1ab1bf2f663ba9ff4b926be6ef4b17d95e7c68377cfb",
+      "sources": [
+        "archives/LIBVGM_0_9_SOURCE.zip"
+      ]
+    },
+    "vendor/lynx/gremlin-lsm.wasm": {
+      "sha256": "95ed17dfaf5939f03876288b8f012afd8fbd1fc392e63133cf7c614288360f0b",
+      "sources": [
+        "archives/LYNX_LSM_0_13_SOURCE.zip"
+      ]
+    },
+    "vendor/mario/gremlin-mario.wasm": {
+      "sha256": "77f3bdc7482c515155c1fa47c1014b976cc846c433ae78159588152cd15c3005",
+      "sources": [
+        "archives/MARIO_077_SOURCE.zip"
+      ]
+    },
+    "vendor/md/gremlin-md.wasm": {
+      "sha256": "cacc3097a1fabfb3b437c49a54b9e3cb73b92e8cecf9f864479f15f02d8b4c22",
+      "sources": [
+        "archives/MD_099_CORRESPONDING_SOURCE.zip"
+      ]
+    },
+    "vendor/model2/gremlin-m2s.wasm": {
+      "sha256": "31a8630b4cef7e0764f75f783249ab54e4e63d8082a51d0d7ead5c7c006e4ae3",
+      "sources": [
+        "archives/MODEL2_M2S_0_15_SOURCE.zip"
+      ]
+    },
+    "vendor/namco/namco-wsg.wasm": {
+      "sha256": "470379383ac374037a6f1bdf73062d54b96a130bbada157658af29fee0567bb3",
+      "sources": [
+        "archives/NAMCO_CUS30_0_12_SOURCE.zip"
+      ]
+    },
+    "vendor/nf/gremlin-nf.wasm": {
+      "sha256": "e88655bd872b051f62df167afd3f3a49f919f5cd560bf78f9f38cfa7d4076d6c",
+      "sources": [
+        "archives/NF_120_CORRESPONDING_SOURCE.zip"
+      ]
+    },
+    "vendor/ngp/gremlin-ngl.wasm": {
+      "sha256": "f9a057be03d79b6130e8abe0ac3d1c15f9dda82109174cf32e1b7af53cdc37cb",
+      "sources": [
+        "archives/NGP_NGL_0_14_SOURCE.zip"
+      ]
+    },
+    "vendor/spt/gremlin-spt.wasm": {
+      "sha256": "5c74465ddac9b09b86fbc801a89586a2cc908a7422b49df868290e9247858e56",
+      "sources": [
+        "archives/SPT_0_11_SOURCE.zip"
+      ]
+    },
+    "vendor/st/gremlin-st.wasm": {
+      "sha256": "992d69654ce6086f459bd1845bc31e84a28de2d8c6184b1f43e6b62bb09b5de4",
+      "sources": [
+        "archives/ST_111_CORRESPONDING_SOURCE.zip"
+      ]
+    },
+    "vendor/sv/gremlin-sv.wasm": {
+      "sha256": "db3ba87af74c5a5e32c45a26d27bcf04d34a8145cf171830424422bd0d3e7b5e",
+      "sources": [
+        "archives/SV_113_CORRESPONDING_SOURCE.zip"
+      ]
+    },
+    "vendor/theme-snes/theme-snes.wasm": {
+      "sha256": "213d3ba9f5ff6cf5bda2dc4232722700c731418d875eda2902adfdebb2b1d238",
+      "sources": [
+        "archives/theme-snes-source.zip"
+      ]
+    },
+    "vendor/vx/gremlin-vx.wasm": {
+      "sha256": "3b2b15320712a095d7bf86be950d0c75211e1c9dd478849aa704c75167d35fc2",
+      "sources": [
+        "archives/VX_115_CORRESPONDING_SOURCE.zip"
+      ]
+    },
+    "vendor/ws/gremlin-ws-headroom.wasm": {
+      "sha256": "6138f5161dd0a024b973355686befb6cc974178d472bee0f17a1f7552747b9ee",
+      "sources": [
+        "archives/WS_107_CORRESPONDING_SOURCE.zip",
+        "ws-headroom/build_wasm.py",
+        "ws-headroom/headroom.patch"
+      ]
+    },
+    "vendor/ws/gremlin-ws.wasm": {
+      "sha256": "21cf20b53b28122d2511cbe6e80c32b7e1227c45e83297b7ed9cf61922063837",
+      "sources": [
+        "archives/WS_107_CORRESPONDING_SOURCE.zip"
+      ]
+    },
+    "vendor/wsr/gremlin-wsr.wasm": {
+      "sha256": "51c40e7e8a4703e5d69eb9756df87076aafeda7012716ac5758aa7d302f7f0ea",
+      "sources": [
+        "archives/WSR_0_5_SOURCE.zip"
+      ]
+    }
+  }
+}

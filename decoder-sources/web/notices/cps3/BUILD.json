@@ -1,0 +1,16 @@
+{
+  "compiler": "Emscripten 6.0.13",
+  "format": "C3M1 original CPS3 PCM register events, original SIMM pages, all-key-off snapshot with exact sample phase; unchanged pinned MAME PCM methods; no rendered track",
+  "files": [
+    {
+      "name": "gremlin-cps3.js",
+      "bytes": 8296,
+      "sha256": "64d66ce038c2b8878a8a9ec67274fbe9b47ca41f73c130f959fdeb0d4ba6072e"
+    },
+    {
+      "name": "gremlin-cps3.wasm",
+      "bytes": 34268,
+      "sha256": "0089e180f09c96ebd1a96a345ef06dcf856b7371ebc4c2e73906b3d96f441775"
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "version": "0.11",
+  "full_codec_package": true,
+  "required_by_release": "038",
+  "changed_previous_files": [
+    "games/music_player/decoders.js"
+  ],
+  "new_component": "spt",
+  "new_formats": [
+    "spt",
+    "spz"
+  ],
+  "original_source_pcm_cases": 22,
+  "original_source_pcm_max_error": 0,
+  "browser_cases": 26,
+  "browser_resampled_max_error": 2.9802322387695312e-08,
+  "browser_original_rate_max_error": 0,
+  "controls": 25,
+  "source_music_modified": false,
+  "production_deployed": false,
+  "lazy_new_runtime_bytes": 490486,
+  "compiler": "Emscripten4.0.10",
+  "source_manifest": "SPT_0_11_SOURCE.zip/SOURCE_MANIFEST.json"
+}

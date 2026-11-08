@@ -1,0 +1,16 @@
+{
+  "compiler": "Emscripten 6.0.13",
+  "format": "DKM1 original MB8884 firmware, original external data, observed timed host inputs; fixed 48kHz original discrete graphs; no rendered track",
+  "files": [
+    {
+      "name": "gremlin-dkong.wasm",
+      "bytes": 153319,
+      "sha256": "5c0a01b5d133c3b19701af3a9e60d405db8b53a29e0ad59e4f19ad8583cb0a11"
+    },
+    {
+      "name": "gremlin-dkong.js",
+      "bytes": 8289,
+      "sha256": "c0bd0514dfaef2f98a46fc851320a2f252da335e57a1e38360656aca99e9ca7f"
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "MAME_commit": "40d0f1125befade5edc08ec5699442ca3a229c01",
+  "core": "Full original MAME Galaxian and MoonCresta discrete graphs and original node mathematics",
+  "source_rate": 48000,
+  "original_circuit_values": true,
+  "hand_written_note_tables": false,
+  "files": {
+    "gremlin-g0.js": {
+      "bytes": 8714,
+      "sha256": "e9531fed8fe04b92096c643f744bb950e10e867945d4dc6686c2dcffb5309039"
+    },
+    "gremlin-g0.wasm": {
+      "bytes": 75663,
+      "sha256": "5f90e714121b93f9f2f484a85ed212535ee91272787e3eb2fecf9ca26eef6494"
+    },
+    "libgremlin-g0.dylib": {
+      "bytes": 125488,
+      "sha256": "51bdc59197a3c67ad79723399079a8cbb3cdb9caa1b96e85edf067e9cbb11454"
+    }
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "core": "Original Beetle WonderSwan / Mednafen Cygne",
+  "commit": "4b01295838ea89e3f1355bbe4cb5cf98aa6108cd",
+  "core_changes": "pre-S16 mixer headroom denominator4->8 only",
+  "default_options": true,
+  "outputs": {
+    "gremlin-ws-headroom.js": {
+      "bytes": 11347,
+      "sha256": "0f04534ef92fc9b459312310c4ecc4e261aceedd8288fb82f6022a8e35102f83"
+    },
+    "gremlin-ws-headroom.wasm": {
+      "bytes": 187013,
+      "sha256": "6138f5161dd0a024b973355686befb6cc974178d472bee0f17a1f7552747b9ee"
+    }
+  }
+}

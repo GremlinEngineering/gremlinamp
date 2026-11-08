@@ -1,0 +1,29 @@
+{
+  "player": "0.21",
+  "compiler": "Emscripten6.0.13",
+  "format": "F3M1/F3Z original MC68000 sound program plus ES5505 samples and original command-table bytes; full ES5510 execution; no full game ROM or rendered PCM",
+  "files": [
+    {
+      "name": "gremlin-f3.wasm",
+      "bytes": 353811,
+      "sha256": "b7cc5331e50e90a91b8cb3093364e8405cf507a213b34c61e10fd13b76426fd2"
+    },
+    {
+      "name": "gremlin-f3.js",
+      "bytes": 7593,
+      "sha256": "10c140fa7325b39d81dbeebc5a6f5e556f9ee6c257bf562ce45267050a66e4e8"
+    }
+  ],
+  "profiles": [
+    {
+      "id": 1,
+      "boot_seconds": 2,
+      "compatibility": "legacy exact output retained"
+    },
+    {
+      "id": 2,
+      "boot_seconds": 8,
+      "ready_guard": "Original DSP pump running and timer enabled"
+    }
+  ]
+}

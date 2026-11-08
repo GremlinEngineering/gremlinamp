@@ -1,0 +1,86 @@
+{
+  "repository": "https://github.com/mamedev/mame",
+  "commit": "40d0f1125befade5edc08ec5699442ca3a229c01",
+  "files": [
+    {
+      "file": "original-MAME/076-disc_cls.h",
+      "sha256": "71f67a41386512bdf930633d036fc8ee61c8f0068d3ef2989d9766613a00104b",
+      "bytes": 10003
+    },
+    {
+      "file": "original-MAME/076-disc_flt.hxx",
+      "sha256": "b6657404c95c80cf57456eb6342c9d94017990c8071162d2bf2406670f0d5e71",
+      "bytes": 41889
+    },
+    {
+      "file": "original-MAME/076-disc_dev.h",
+      "sha256": "ae0025c5668984ad8c57e99a97ce3b31ed48a54777ea1873c12d03a209fe256f",
+      "bytes": 5014
+    },
+    {
+      "file": "original-MAME/076-disc_mth.hxx",
+      "sha256": "83c93d7b2c3ed116602bdb2d106397a34a32222dd95b506f9f7092de23241bbc",
+      "bytes": 73677
+    },
+    {
+      "file": "original-MAME/076-disc_inp.hxx",
+      "sha256": "324b6ffdd89ce712f8202f4536c76c35ddfe2d436f04f23a0d517180b60d7acf",
+      "bytes": 7231
+    },
+    {
+      "file": "original-MAME/076-disc_wav.h",
+      "sha256": "709e30550788a2800bf8f163e2846d7c96da7f08cf9f9c484f633138923b49bb",
+      "bytes": 6685
+    },
+    {
+      "file": "original-MAME/076-disc_flt.h",
+      "sha256": "fda699d992e5b679b25b8054b1c223602a55f869432bc80d82f7ae7e3833b197",
+      "bytes": 5801
+    },
+    {
+      "file": "original-MAME/076-disc_mth.h",
+      "sha256": "e5ee84c25952ce97a9ecc770d238b027adf6c2b7618c57ac05d08e97dc26fe02",
+      "bytes": 7822
+    },
+    {
+      "file": "original-MAME/076-disc_dev.hxx",
+      "sha256": "919eb85043eff6c60468650045b07df5f4b7fbc2e3fb337c5f671945a07f41fe",
+      "bytes": 55880
+    },
+    {
+      "file": "original-MAME/076-discrete.cpp",
+      "sha256": "72a6cb26cb750ef4f47e51d335fa7d7a4def26c3629c0557e7ec0db4cc2fd551",
+      "bytes": 30005
+    },
+    {
+      "file": "original-MAME/076-discrete.h",
+      "sha256": "b502a24d315a5f840af6b3ed9cc4019a40a299c1ea08b29f56559e1f167a0919",
+      "bytes": 217114
+    },
+    {
+      "file": "original-MAME/076-disc_wav.hxx",
+      "sha256": "1d28e38e59cf19ee03658db969ae12c077990955608c1bdeababb2ac39e69627",
+      "bytes": 51850
+    },
+    {
+      "file": "original-MAME/076-disc_sys.hxx",
+      "sha256": "76fc9d7b73b209e0cdb86d1577e4bc9906b593058ac357cfe28317c92621064c",
+      "bytes": 2796
+    },
+    {
+      "file": "original-MAME/galaxian_a.cpp",
+      "sha256": "9fc89e3b87b3f66695e7da581d8db67cc1b2669ea7fd4a85580fc4e28a45da83",
+      "bytes": 24501
+    },
+    {
+      "file": "original-MAME/galaxian.cpp",
+      "sha256": "1b4924e8fa7cef5077c29d44cea20a89bf4341a618edf42d4bd162d4bb86013e",
+      "bytes": 892854
+    },
+    {
+      "file": "original-MAME/galaxian.h",
+      "sha256": "9cd23029e85981e551fa5a8f0158e8a09dbae2e04c5c4c2dc38e8043cb26c35a",
+      "bytes": 34420
+    }
+  ]
+}

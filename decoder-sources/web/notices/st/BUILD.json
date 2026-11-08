@@ -1,0 +1,16 @@
+{
+  "core": "Original Stella2014 full6507/TIA",
+  "commit": "7d1361e407e63f29e52892655069e5fb4096e691",
+  "core_changes": false,
+  "default_options": true,
+  "outputs": {
+    "gremlin-st.js": {
+      "bytes": 60508,
+      "sha256": "288aab19a53ef3c8782e180f10618c2726bc9f33b03c517efc357559cd8e4ec8"
+    },
+    "gremlin-st.wasm": {
+      "bytes": 987657,
+      "sha256": "992d69654ce6086f459bd1845bc31e84a28de2d8c6184b1f43e6b62bb09b5de4"
+    }
+  }
+}

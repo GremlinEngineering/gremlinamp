@@ -1,0 +1,20 @@
+{
+  "all_identical": true,
+  "files": {
+    "gme-worker.js": {
+      "published_sha256": "67da696adb68acd8490b573d759caf01c0309b45e3179eb576f3ee402e771b39",
+      "modern_sha256": "67da696adb68acd8490b573d759caf01c0309b45e3179eb576f3ee402e771b39",
+      "byte_identical": true
+    },
+    "vendor/libgme.js": {
+      "published_sha256": "23b4cf18b33c2129b5ed6dd5a2794c7b8d62dccad9c587f4e99c0c6f71cac4ff",
+      "modern_sha256": "23b4cf18b33c2129b5ed6dd5a2794c7b8d62dccad9c587f4e99c0c6f71cac4ff",
+      "byte_identical": true
+    },
+    "vendor/libgme.wasm": {
+      "published_sha256": "dd46c3843e4f2ac39ed0ce1d630f3d5a3c9c73d6af742083ecc7fbd9f37503fd",
+      "modern_sha256": "dd46c3843e4f2ac39ed0ce1d630f3d5a3c9c73d6af742083ecc7fbd9f37503fd",
+      "byte_identical": true
+    }
+  }
+}

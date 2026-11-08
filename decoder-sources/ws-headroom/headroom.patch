@@ -1,0 +1,11 @@
+--- a/mednafen/wswan/sound.c
++++ b/mednafen/wswan/sound.c
+@@ -373,7 +373,7 @@
+ static void RedoVolume(void)
+ {
+    /* effective volume 1/4 */
+-   Blip_Synth_set_volume_n(&WaveSynth, 1, 4, 256);
++   Blip_Synth_set_volume_n(&WaveSynth, 1, 8, 256);
+ }
+ 
+ void WSwan_SoundInit(void)

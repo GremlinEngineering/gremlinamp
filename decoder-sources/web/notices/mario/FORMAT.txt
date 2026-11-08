@@ -1,0 +1,41 @@
+MRM1 original Mario Bros. external sound firmware container.
+Header128bytes, magic4d 52 4d 1a. Little-endian uint32 fromoffset4:
+version1, profile1, crystal11000000, clockdivisor15, graph48000,
+program4096, externaldata0, eventcount, eventoffset4224,
+hiddenpreroll_samples, duration_samples, reserved0, totalbytes,
+original_programCRC32=06b9ff85, empty_dataCRC32=0, eventsCRC32.
+Bytes68..127 zero. Unmodified external soundROM4096bytes follows.
+Then8byte events: machinecycle32, originalmainbusaddress16, value8, reserved0.
+Input addresses7e00,7f00,7f01,7f03,7f04,7f05. Max65536events,120s preroll,
+600s output. Event order and original CPU instruction boundaries retained.
+
+Internal M58715 ROM is NO_DUMP. Profile is the explicitly documented
+MAME I8039 compatibility startup: in the runtime copy only, byte1 changes
+00→01 (call100→call101). Original container bytes remain unchanged.
+No music/note/tempo/table edits. The BSD MCS48 CPU has only a new model
+configuration for8039 RAM128/external4K; all opcode/timer/IRQ methods unchanged.
+Source reference is an explicit BSDCPU replacement full-game research profile,
+whose video matches legacyFBNeo. Legacy8039 audio equivalence is not claimed;
+that strict attempted reference was rejected and is retained in verification.
+
+MOVX external writes feed the original discrete DAC model. P1/P2/T0 inputs
+and main-bus writes retain the original bindings. Internal sample generation
+advances before pin changes at floor(cycle*720000/11000000).
+Complete original MAME0.190 OLD_SOUND alternative circuit:35nodes,13 used
+mathematical node classes, held-reset separate effects inputs, original gain1.
+Not the latest MAME netlist and not a physical analog-board measurement.
+The original program and this declared pinned circuit/profile reproduce the
+selected original music; prior MP3 recordings were not waveform references.
+
+Native linear rational output resampling supports8–192kHz and finite silence
+after duration. DKM/other codecs are unchanged. Worker transport and graph
+scheduling are standalone glue. Copyright/license notices and full source
+are in MARIO_077_SOURCE.zip; research-only FBNeo has separate license.
+
+Native source build:
+clang++ -std=c++20 -O2 -fwrapv -ffp-contract=off -fvisibility=hidden -dynamiclib source/mario_core.cpp -o libgremlin-mario.dylib
+Wasm uses Emscripten6.0.13, C++20, -O3 -fwrapv -ffp-contract=off
+-fwasm-exceptions; exports/memory flags in verification-and-build/build_wasm.py.
+Set localSDK/path variables for the environment. The complete unmodified
+original externalROM is recoverable from MRM atoffset128,length4096.
+

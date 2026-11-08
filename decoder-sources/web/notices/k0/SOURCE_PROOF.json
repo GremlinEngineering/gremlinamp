@@ -1,0 +1,47 @@
+{
+  "MAME_commit": "40d0f1125befade5edc08ec5699442ca3a229c01",
+  "source_cpp_sha256": "a79ab1cee300f11203bacc50d678f15711772db2f96f0487f6793eee362a0411",
+  "source_header_sha256": "245f7e7557d80a5284c3d22d5468a257c6aa0d9114b12db76e3de63cdce15510",
+  "original_voice_structure_sha256": "9128db78af18717c5e2a1f4df1be54709110b5e6ecc02fa51291f0f9d7268b7b",
+  "methods": [
+    {
+      "method": "sound_stream_update",
+      "sha256": "ff0cc2815b3eae2e15ae25a3753372f1aa3f6d204f6dab537e94f76ab821339e",
+      "source_start_line": 88
+    },
+    {
+      "method": "control_A_w",
+      "sha256": "06f6000c1a358a7d2dbe15cbce6a2f0cb27679bac0cc9fef568d34557d8a1d84",
+      "source_start_line": 108
+    },
+    {
+      "method": "control_B_w",
+      "sha256": "f6851a5c223aef54e4d85bcf2865b8173fecb803f25374a95aab1665dfa948f4",
+      "source_start_line": 117
+    },
+    {
+      "method": "ld1_w",
+      "sha256": "327fd1685b39868f640a64dacd07bd33e9e644cb092d8307d1f5a63e00e21de8",
+      "source_start_line": 126
+    },
+    {
+      "method": "ld2_w",
+      "sha256": "5051c26d8fa9528a876eb17a2881ac1db3adc09665dfccaea8c75f634c310f58",
+      "source_start_line": 132
+    },
+    {
+      "method": "tg1_w",
+      "sha256": "98808b9f88215e03c2276557b9b1d6d12f25ab7e04de042856dc7e28d49cfd62",
+      "source_start_line": 138
+    },
+    {
+      "method": "tg2_w",
+      "sha256": "a3ca29d8660873b1f654cac15f8108e23d03f4b2c4d051014ae5b5df430ea968",
+      "source_start_line": 146
+    }
+  ],
+  "chip_clock": 3579545,
+  "output_rate": 48000,
+  "original_methods_unchanged": true,
+  "resampler": "Host arithmetic mean of original chip-clock samples; explicitly not a physical PCB measurement or MAME sound-stream resampler"
+}

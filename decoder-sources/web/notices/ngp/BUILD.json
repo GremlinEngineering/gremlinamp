@@ -1,0 +1,20 @@
+{
+  "player": "0.14",
+  "compiler": "Emscripten6.0.13",
+  "source_commit": "a50d5ac288a81f2104ddf43195a4efdd15c72227",
+  "format": "NGL1 / NGZ, complete original T6W28+stereoDAC events at3072000Hz, original frame flushes, hidden original preroll",
+  "source_sample_rate": 44100,
+  "output": "StereoFloat32 from original signed16bit output; deterministic rational linear conversion",
+  "files": [
+    {
+      "name": "gremlin-ngl.wasm",
+      "bytes": 31039,
+      "sha256": "f9a057be03d79b6130e8abe0ac3d1c15f9dda82109174cf32e1b7af53cdc37cb"
+    },
+    {
+      "name": "gremlin-ngl.js",
+      "bytes": 8377,
+      "sha256": "dc36fc65c1fb6538c200c004389cdefa5cfa95013d0140e584ba4e68ea720cc5"
+    }
+  ]
+}

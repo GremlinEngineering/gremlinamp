@@ -1,0 +1,65 @@
+M2S1 / M2Z — original Sega Model2 sound-board music bank
+
+This is a typed audio-only bank, not a game ROM image or a rendered recording.
+It contains original M68000 sound firmware, original sample ROM data, a music
+selector table and provenance hashes. The original sound CPU and SCSP/DSP execute
+at playback time. Main game CPU code, graphics and BIOS are absent. M2Z is gzip
+of exactly one M2S file. Browser decompression is bounded to12000000bytes.
+
+Profile2 uses the official Mednafen1.32.1 SASPlay audio core. Its SCSP, M68000,
+timers, bus routines and synthesis math are unchanged. Frontend/UI/file discovery
+are omitted. The facade implements the original Load initialization and StartSong
+protocol for Sonic the Fighters:4seconds cold execution, then MIDI A0,10,cue.
+Sonic's original SASPlay games.h mix factor1000/1024 and clipping are retained.
+The audio core's base output is44100Hz signed16stereo; conversion to other output
+rates is deterministic rational linear interpolation to Float32. Playback is
+continuous original CPU execution, including real driver loops; no loop is inferred.
+
+Little-endian header,160bytes:
+0  char4 M2S followed by0x1A
+4  u32 version1
+8  u32 M68000 clock11289600
+12 u32 SCSP clock22579200
+16 u32 source sample rate44100
+20 u32 program region size524288
+24 u32 sample region size8388608
+28 u32 music selector count,1..256
+32 u32 fixed header size160
+36 u32 cold initialization blocks300, each588*512 master timestamps
+40 u32 MIDI scheme2, A0,10,cue
+44 u32 core/output profile2, official SASPlay single SCSP with Sonic mix factor
+48 u32 program region offset, exactly160+selector_count*4
+52 u32 sample region offset, exactlyprogram_offset+524288
+56..63 reserved zero
+64..95 SHA256 of the raw original program region
+96..127 SHA256 of the concatenated raw original sample ROMs
+128..159 reserved zero
+
+Then exactly selector_count distinct u32 music command IDs, each0..255.
+Then the raw original program dump and concatenated raw original sample dumps.
+No padding, trailing bytes or dependencies are allowed. Both region SHA256 values
+are verified before emulation. Load rejects unsupported profiles, clocks, offsets,
+sizes, duplicates, missing selectors and output rates outside8000..192000Hz.
+The original SASPlay loader's little-endian ROM-word interpretation is retained;
+bank creation does not alter original dump bytes. A failed load disables playback.
+
+For Sonic the Fighters, the whitelist contains all25 original music commands
+0x00..0x18, confirmed by official SASPlay games.h and Hoot's named command table.
+Each track references the same bank file and uses its actual original command ID
+as subsong. Twenty-two historical primary titles are mapped by name, not ordinal;
+three additional original music commands are documented separately.
+
+Validation: fresh direct raw-ROM/SASPlay reference vs M2S parsing at44100Hz,
+25commands*240seconds. Full browser/native comparisons at44100/48000Hz,
+50cases*240seconds. No score, instrument, music firmware or sample data is edited.
+
+The official SASPlay documentation notes possible timing deviations up to2% in
+some supported games because dynamic SCSP wait states/interrupt delays are not
+fully modeled. This is a documented emulator profile, not a physical-board or
+analog-output measurement: https://mednafen.github.io/documentation/sasplay.html
+Controls are checked through the real MusicEngine/AudioWorklet with Chromium's
+test OS output stream; physical CoreAudio output is not measured.
+
+Corresponding source and GPLv2-or-later notices are bundled in
+MODEL2_M2S_0_15_SOURCE.zip. The old0.14 codecs and engine remain byte-identical;
+only format routing is extended. New decoder assets are loaded only for M2S/M2Z.

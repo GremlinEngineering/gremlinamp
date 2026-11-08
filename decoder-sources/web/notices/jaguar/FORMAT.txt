@@ -1,0 +1,46 @@
+JGM1/JGZ — original Jaguar music capsule, version1
+JGZ=gzip(JGM1). No rendered PCM/MP3/WAV/song waveform in the capsule.
+Original complete cartridge bytes plus bounded ordinary controller scripts
+select a verified musical scene. Complete original machine executes the
+original 68000/GPU/DSP music program and original samples; graphics remain
+because the original game still runs. A bare game ROM is not a music package:
+selection scripts, musical context, playback window and full-window proof
+are required alongside this container.
+
+Core: unchanged VirtualJaguar3.11.0, pin34696082dbc0448caf23aa4ecb5ed40817cb8da0.
+Frontend adapter only. Profile1 MissileCommand3D2MiB uses standardHLEboot;
+profile2 Rayman4MiB uses built-in original SeriesK BIOS (research, not yet accepted). All other options
+use original defaults, except per-title enhancement presets/hooks disabled.
+Original48kHz frontend audio,800stereo frames per original video-frame call.
+This is the pinned emulator's existing scheduling/resampler profile, not a
+measurement or claim of physical Jaguar clock/cycle equivalence. No CPU,
+DSP, timer, wavetable, samples, sequence tables or music notes are modified.
+
+Little-endian integers. Header128bytes:
+0 magic JGM followed by byte1a
+4 version1;8 profile1or2;12 source48000Hz;16 source800samples/frame
+20 original cartridge bytes2MiB/4MiB;24 selectioncount1..16
+28 tableoffset128;32 descriptorbytes64;36 scriptoffset128+64*count
+40 scriptbytes<=65536,multiple8;44 ROMoffset=scriptoffset+scriptbytes
+48 totalbytes<=8000000;52 CRC32table;56 CRC32scripts;60 CRC32ROM
+64..95 SHA256originalROM;96..115 exact20byte corecommit;116..127zero.
+Descriptors64bytes,8u32 followed by32reservedzero bytes:
+subsongindex;prefixoffset relative to scripts;prefixeventcount;prefixframes;
+playoffset relative to scripts;playeventcount;playframes;audioframes.
+Audioframes=playframes*800. Each script record8bytes:u32frames,u32inputmask.
+Prefix<=12000gameframes;play<=36000gameframes;eventcount1..256;allframes>0.
+Input low16bits=standardRetroPad;bits16..25=ordinarykeyboard0..9.
+Events describe button holds, never game RAM writes, driver commands,
+constructed notes or prerecorded DAC samples. Prefix audio is discarded;
+playback begins on the documented original music trigger/context frame.
+ROMs are exact SHA256-verified original catalog dumps, not rewritten rips.
+
+Worker validates every descriptor/script, reserved fields, checksums, source
+revision, rate8..192kHz, subsong and original cartridge identity before running.
+Uncompressed/gzip input and expanded bytes<=8MB. Rendering1..16384frames,
+linear output resampling from unchanged source48kHz PCM; zero after selected
+window. Pause/stop/switch dispose worker; engine owns final playbackfade.
+For looping selections, finite captured music window and optionalfade are
+specified in manifest. No exact historical MP3/title/duration/full-album
+mapping is implied by a native source selection. Research reference PCM
+is retained locally for checking, never included in native delivery.

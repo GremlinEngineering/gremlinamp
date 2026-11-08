@@ -1,0 +1,34 @@
+{
+  "core": "PicoDrive",
+  "commit": "1890c2932234c9d30f4cd3851d02228baae8f09e",
+  "core_changes": false,
+  "cpu": "FAME 68000 / CZ80 / SH2 C interpreter",
+  "source_archives": {
+    "099-picodrive-source.zip": {
+      "bytes": 2466765,
+      "sha256": "96d35479f8493f91fbfd5a3c2048d1339d83ee3374fd1520fffb32a3c8635c76"
+    },
+    "099-libpicofe-source.zip": {
+      "bytes": 127426,
+      "sha256": "b72659f9fe2494f035cac6cf79a8e8106670f6a2e88d4a58c7a234e9d8e3fd35"
+    },
+    "099-emu2413-source.zip": {
+      "bytes": 20560,
+      "sha256": "d71042567e9dce2fb42c4bcf65541662c1c251abf174d98035a3aff2b9137537"
+    },
+    "099-dr-libs-source.zip": {
+      "bytes": 539503,
+      "sha256": "077d6b29a78da5132065fcc9b44ca50e7e168b94250f2c25614101d3f808bcc1"
+    }
+  },
+  "outputs": {
+    "gremlin-md.js": {
+      "bytes": 57290,
+      "sha256": "f4874de166e779bcf856c2b5006b1369402c751ab0a843085a6c7bf82bc1c694"
+    },
+    "gremlin-md.wasm": {
+      "bytes": 1410313,
+      "sha256": "cacc3097a1fabfb3b437c49a54b9e3cb73b92e8cecf9f864479f15f02d8b4c22"
+    }
+  }
+}

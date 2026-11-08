@@ -1,0 +1,16 @@
+{
+  "compiler": "Emscripten 6.0.13",
+  "format": "MRM1 original Mario external firmware; documented I8039 startup compatibility; physical11MHz/15; complete original MAME0.190 OLD_SOUND alternate circuit; no rendered track",
+  "files": [
+    {
+      "name": "gremlin-mario.wasm",
+      "bytes": 107444,
+      "sha256": "77f3bdc7482c515155c1fa47c1014b976cc846c433ae78159588152cd15c3005"
+    },
+    {
+      "name": "gremlin-mario.js",
+      "bytes": 8082,
+      "sha256": "a53010ed0505b9316dbccb38cf2a9fc3a3ff6cff6ec2729cc6d77dd0f7fafa98"
+    }
+  ]
+}

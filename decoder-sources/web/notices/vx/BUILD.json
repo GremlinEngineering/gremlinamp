@@ -1,0 +1,16 @@
+{
+  "core": "Original VecX full6809/PSG",
+  "commit": "dccff5402a16d1ea7c112095a8e42632bf149506",
+  "core_changes": false,
+  "default_options": true,
+  "outputs": {
+    "gremlin-vx.js": {
+      "bytes": 8233,
+      "sha256": "5633bc2c202dc41fed4e0593ece03506f6dc376cc7a0ae5cf28059f8309ce5f7"
+    },
+    "gremlin-vx.wasm": {
+      "bytes": 73591,
+      "sha256": "3b2b15320712a095d7bf86be950d0c75211e1c9dd478849aa704c75167d35fc2"
+    }
+  }
+}

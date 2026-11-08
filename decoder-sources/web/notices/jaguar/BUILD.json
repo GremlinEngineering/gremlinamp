@@ -1,0 +1,20 @@
+{
+  "original_core": "libretro/virtualjaguar-libretro",
+  "pin": "34696082dbc0448caf23aa4ecb5ed40817cb8da0",
+  "tag": "3.11.0",
+  "core_source_changes": false,
+  "adapter": "libretro frontend only, original ROM, input scripts and complete original machine; originalCPU/DSP/sample/sequence untouched",
+  "research_only": true,
+  "files": [
+    {
+      "name": "gremlin-jaguar.wasm",
+      "bytes": 1831919,
+      "sha256": "bad8acf0209607d197f1b0c54f0ac955223db741c5a503ca02167eb11169c848"
+    },
+    {
+      "name": "gremlin-jaguar.js",
+      "bytes": 85153,
+      "sha256": "6503a1c1c339e55235a183fbf0c7f22a47ba9d7292b0aab4622b8ec88c8ff806"
+    }
+  ]
+}
