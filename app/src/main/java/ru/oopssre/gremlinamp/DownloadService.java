@@ -17,14 +17,20 @@ public class DownloadService extends Service {
   accepted.incrementAndGet();startForeground(2,notification());if(running)return START_NOT_STICKY;running=true;
   String payload=intent.getStringExtra("games");
   boolean sync=intent.getBooleanExtra("sync",false);
+  boolean archive=intent.getBooleanExtra("archive",false);
   task=io.submit(()->{boolean locked=false;PowerManager.WakeLock wake=((PowerManager)getSystemService(POWER_SERVICE)).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK,"GremlinAmp:Download");
-   try{wake.acquire(6*60*60*1000L);if(!sync){JSONArray requested=new JSONArray(payload);List<JSONObject> pending=new ArrayList<>();for(int k=0;k<requested.length();k++)pending.add(requested.getJSONObject(k));library.queueDownloads(pending);}progress="Ожидание текущей загрузки…";Library.DOWNLOAD_LOCK.lockInterruptibly();locked=true;if(Thread.currentThread().isInterrupted())throw new java.io.InterruptedIOException();
+   try{wake.acquire(6*60*60*1000L);if(!sync&&!archive){JSONArray requested=new JSONArray(payload);List<JSONObject> pending=new ArrayList<>();for(int k=0;k<requested.length();k++)pending.add(requested.getJSONObject(k));library.queueDownloads(pending);}progress="Ожидание текущей загрузки…";Library.DOWNLOAD_LOCK.lockInterruptibly();locked=true;if(Thread.currentThread().isInterrupted())throw new java.io.InterruptedIOException();
     Library.Progress report=s->{progress=s;((NotificationManager)getSystemService(NOTIFICATION_SERVICE)).notify(2,notification());};
-    if(sync){library.resumeRequests();library.syncSaved(report);SimilarityStore.refresh(library);MusicSyncJob.result(library,library.downloadSummary,true);}
+    if(archive){
+     library.downloadArchive(report);
+     library.preferences.edit().putBoolean("follow_all_music",true).putBoolean("archive_paused",false).apply();
+     MusicSyncJob.result(library,library.downloadSummary,true);
+    }
+    else if(sync){library.resumeRequests();library.syncSaved(report);SimilarityStore.refresh(library);MusicSyncJob.result(library,library.downloadSummary,true);}
     else {JSONArray a=new JSONArray(payload);List<JSONObject> games=new ArrayList<>();for(int k=0;k<a.length();k++)games.add(a.getJSONObject(k));library.download(games,report);report.update("Проверяю индекс похожей музыки…");SimilarityStore.refresh(library);}
     progress=library.downloadSummary;
    }
-   catch(Exception e){if(sync)MusicSyncJob.result(library,"Обновление отложено: "+e.getMessage(),false);progress=library.cancel||Thread.currentThread().isInterrupted()?"Загрузка приостановлена":library.networkAllowed()?"Загрузка продолжится автоматически: "+e.getMessage():"Ожидание разрешённой сети · загрузка продолжится автоматически";}
+   catch(Exception e){if(sync||archive)MusicSyncJob.result(library,"Обновление отложено: "+e.getMessage(),false);progress=library.cancel||Thread.currentThread().isInterrupted()?"Загрузка приостановлена":archive?"ZIP не обновлён · "+e.getMessage():library.networkAllowed()?"Загрузка продолжится автоматически: "+e.getMessage():"Ожидание разрешённой сети · загрузка продолжится автоматически";}
    finally{Library.revision.incrementAndGet();if(locked)Library.DOWNLOAD_LOCK.unlock();if(wake.isHeld())wake.release();LibraryMaintenanceJob.schedule(this);stopForeground(STOP_FOREGROUND_REMOVE);stopSelf();}
   });return START_NOT_STICKY;
  }

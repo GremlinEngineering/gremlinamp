@@ -4,6 +4,11 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+    inputs:
+      decoder_bundle_url:
+        description: "HTTPS URL for the checked music_player.zip"
+        required: false
+        type: string
 permissions:
   contents: read
 jobs:
@@ -30,11 +35,25 @@ jobs:
           bash tools/test-playback.sh
           bash tools/test-update.sh
           bash tools/test-ui.sh
+      - name: Import the site decoder bundle
+        id: decoder
+        env:
+          BUNDLE_URL: ${{ inputs.decoder_bundle_url || vars.GREMLINAMP_DECODER_BUNDLE_URL }}
+        run: |
+          if [[ -z "$BUNDLE_URL" ]]; then
+            echo "::notice::No site decoder bundle supplied. Source checks ran; APK build skipped."
+            exit 0
+          fi
+          curl --fail --location --proto '=https' --proto-redir '=https' "$BUNDLE_URL" -o "$RUNNER_TEMP/music_player.zip"
+          python3 tools/import-site-engine.py "$RUNNER_TEMP/music_player.zip"
+          echo 'ready=true' >> "$GITHUB_OUTPUT"
       - name: Build development APK
+        if: steps.decoder.outputs.ready == 'true'
         env:
           GREMLINAMP_STOREPASS: android
         run: bash tools/build-sdk.sh
       - uses: actions/upload-artifact@v4
+        if: steps.decoder.outputs.ready == 'true'
         with:
           name: gremlinamp-development-apk
           path: build/GremlinAmp-*.apk

@@ -13,3 +13,8 @@ The inherited PROVENANCE.json records the upstream source version and the websit
 Music, game trademarks, game and series posters, and other fetched site materials are not relicensed under MIT. Their respective rightsholders and the site's material-specific terms apply. This repository does not contain the downloaded music library or game posters.
 
 The local YM2413 adapter (gme/Ym2413_Emu.cpp and its header) replaces the disabled stub and uses bundled emu2413 by Mitsutaka Okazaki and contributors under MIT (gme/ext/LICENSE). The GME CMake source list ensures this core is also included for VGM-only builds. These changes do not relicense the remaining GME library.
+
+
+## Site WebAssembly decoder bundle
+
+The decoder modules and original notices are imported from the project's `music_player.zip`. The import preserves the original worker and runtime files. Corresponding source packages and their provenance records are in the same site bundle under `music_player/vendor/`. Each component retains its own license. The MIT license covers the GremlinAmp adapter and application code.

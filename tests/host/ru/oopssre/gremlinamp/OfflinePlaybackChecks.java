@@ -13,13 +13,13 @@ public final class OfflinePlaybackChecks {
  static int checks;
  static void check(boolean ok,String message){checks++;if(!ok)throw new AssertionError(message);}
  static void await(BooleanSupplier condition)throws Exception{long deadline=System.nanoTime()+2_000_000_000L;while(!condition.getAsBoolean()&&System.nanoTime()<deadline)Thread.sleep(5);check(condition.getAsBoolean(),"asynchronous operation completed");}
- static JSONObject game(int id)throws Exception{return new JSONObject().put("id","game-ra-"+id).put("title","Game "+id).put("href","games/game-series-ra-"+id+".html").put("manifest","music/sets/"+id+"-v1.json").put("terms",new JSONObject().put("genre",new JSONObject().put("action","Action")));}
+ static JSONObject game(int id)throws Exception{return new JSONObject().put("_music_contract",1).put("id","game-ra-"+id).put("title","Game "+id).put("href","games/game-series-ra-"+id+".html").put("manifest","music/sets/"+id+"-v1.json").put("terms",new JSONObject().put("genre",new JSONObject().put("action","Action")));}
  static JSONObject asset(byte[] bytes)throws Exception{return new JSONObject().put("sha256",Library.hash(bytes)).put("bytes",bytes.length).put("format","nsf").put("url","../files/test.nsf");}
  static JSONObject track(JSONObject asset)throws Exception{return new JSONObject().put("title","Track").put("asset",asset).put("backend","gme").put("duration_known",true).put("play_ms",30000);}
  static void cache(Library l,String path,JSONObject data)throws Exception{Library.atomic(l.jsonFile(Library.BASE+path),data.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));}
  static void gallery(Library l,String kind,JSONArray data)throws Exception{Library.atomic(l.documentFile(Library.BASE+"assets/gallery-"+kind+".json"),data.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));Library.ART_REVISION.incrementAndGet();}
  static void fixture(Library l,JSONObject game,JSONObject manifest)throws Exception{
-  cache(l,game.getString("manifest"),manifest);cache(l,"assets/gallery-music.json",new JSONObject().put("games",new JSONArray().put(game)));
+  cache(l,game.getString("manifest"),manifest);cache(l,"music/game-index.json",ContractFixtures.index(game));
   cache(l,"assets/statistics.json",new JSONObject().put("editions",new JSONArray()).put("series",new JSONArray()));
   JSONObject poster=new JSONObject().put("src","assets/full.png?v=1").put("preview","assets/small.webp?v=1");
   gallery(l,"games",new JSONArray().put(new JSONObject().put("id","series-ra-1").put("href",game.getString("href")).put("views",new JSONObject().put("poster",poster))));gallery(l,"series",new JSONArray());
@@ -36,7 +36,7 @@ public final class OfflinePlaybackChecks {
   volatile boolean audioStarted;
   RealProbe(Library l){library=l;am=new android.media.AudioManager();session=new android.media.session.MediaSession(this,"test");}
   void announce(){}
-  void nativePlay(File f,JSONObject t,int token){began(token);audioStarted=true;state="playing";}
+  void nativePlay(File f,JSONObject t,String engine,List<File> files,JSONObject descriptor,int token){began(token);audioStarted=true;state="playing";}
   public void close(){generation++;if(work!=null)work.cancel(true);if(artworkWork!=null)artworkWork.cancel(true);executor.shutdownNow();continuationIo.shutdownNow();artworkIo.shutdownNow();}
  }
  public static void main(String[] args)throws Exception {
@@ -51,7 +51,7 @@ public final class OfflinePlaybackChecks {
   JSONObject updated=new JSONObject(game.toString()).put("manifest","music/sets/1-v2.json");JSONObject changed=new JSONObject().put("tracks",new JSONArray().put(track(asset(new byte[]{9}))));cache(l,updated.getString("manifest"),changed);
   check(l.localManifest(updated).getJSONArray("tracks").getJSONObject(0).getJSONObject("asset").getString("sha256").equals(asset.getString("sha256")),"incomplete update retains prior playable manifest");check(l.downloadLabel(updated).equals("Обновить"),"pending update remains visible");
   boolean rejected=false;try{l.markComplete(updated,changed);}catch(IOException expected){rejected=true;}check(rejected&&l.fullyLocal(updated),"incomplete manifest cannot replace saved snapshot");
-  l.jsonFile(Library.BASE+"assets/gallery-music.json").delete();check(l.catalog(false).getJSONArray("games").length()==1,"saved library opens without cached global catalog");
+  l.jsonFile(Library.BASE+"assets/gallery-music.json").delete();check(l.catalog(false).getJSONArray("games").length()==1,"v1 library opens without the legacy catalog");
   l.jsonFile(Library.BASE+"assets/statistics.json").delete();check(l.enrichGames(List.of(game)).size()==1,"missing statistics does not block local browsing or genre data");fixture(l,game,manifest);
   check(l.remainingCached(List.of(game))==0,"download confirmation uses cached sizes without a network preflight");
   check(l.remainingCached(List.of(game(999)))==-1,"unknown download size does not fetch hundreds of manifests before confirmation");

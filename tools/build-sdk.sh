@@ -2,6 +2,13 @@
 # Reproducible dependency-free Android build. Requires SDK 35, NDK 27, CMake 3.22.1 and JDK 17.
 set -euo pipefail
 cd "$(dirname "$0")/.."
+if [[ -n "${GREMLINAMP_SITE_ENGINE_ZIP:-}" ]]; then
+ python3 tools/import-site-engine.py "$GREMLINAMP_SITE_ENGINE_ZIP"
+fi
+if [[ ! -s app/src/main/assets/site-engine/archive-sha256.txt ]]; then
+ echo 'Import music_player.zip with tools/import-site-engine.py before building.' >&2
+ exit 2
+fi
 SDK="${ANDROID_SDK_ROOT:?Set ANDROID_SDK_ROOT}"
 NDK="${ANDROID_NDK_ROOT:-$SDK/ndk/27.0.12077973}"
 BT="$SDK/build-tools/35.0.0"

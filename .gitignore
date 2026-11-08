@@ -7,3 +7,6 @@
 *.keystore
 *.jks
 *.apk
+
+# Site decoder runtime imported from the supplied music_player.zip.
+app/src/main/assets/site-engine/
