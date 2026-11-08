@@ -79,6 +79,7 @@ final class TvUpdates {
         io.execute(this::restore);
     }
 
+    long installedBuild() { return installedBuild; }
     String installedVersion() { return installedVersion; }
     State state() { return new State(stage, offer, ready, detail); }
 

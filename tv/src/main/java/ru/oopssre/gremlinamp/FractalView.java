@@ -6,6 +6,8 @@ import android.opengl.GLSurfaceView;
 import android.os.SystemClock;
 
 import java.io.ByteArrayOutputStream;
+import java.io.DataInputStream;
+import java.util.Arrays;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
@@ -17,7 +19,15 @@ import javax.microedition.khronos.egl.EGLConfig;
 import javax.microedition.khronos.opengles.GL10;
 
 final class FractalView extends GLSurfaceView {
-    static final String[] SCENES = {"Орбиты Жюлиа", "Погружение Мандельброта", "Зеркальная Жюлиа"};
+    static final String[] SCENES = {"Астероидное поле", "Tennis for Two",
+            "Орбиты Жюлиа", "Погружение Мандельброта", "Зеркальная Жюлиа"};
+    private static final String[] DESCRIPTIONS = {
+            "Векторная заставка · корабль и осколки под музыку",
+            "Запись розыгрыша · осциллограф 1958 года",
+            "Фрактал · спирали и орбиты",
+            "Фрактал · приближение к границе",
+            "Фрактал · симметричные узоры"
+    };
     private final Scene renderer;
     private long previousTick;
     private float phase;
@@ -33,19 +43,21 @@ final class FractalView extends GLSurfaceView {
             for (int n; (n = input.read(chunk)) >= 0;) output.write(chunk, 0, n);
             fragment = output.toString(StandardCharsets.UTF_8.name());
         }
-        renderer = new Scene(fragment, () -> post(unavailable));
+        renderer = new Scene(fragment, new TennisReplay(context), () -> post(unavailable));
         setRenderer(renderer);
         setRenderMode(RENDERMODE_WHEN_DIRTY);
         getHolder().setFixedSize(640, 360);
     }
 
-    String nextScene(int direction) {
-        scene = Math.floorMod(scene + direction, SCENES.length);
-        frame(false, renderer.frame.levels());
-        return SCENES[scene];
+    void selectScene(int value) {
+        scene = value;
+        phase = 0;
+        previousTick = 0;
+        frame(false, AudioEnergy.SILENCE);
     }
 
     String sceneName() { return SCENES[scene]; }
+    String sceneDescription() { return DESCRIPTIONS[scene]; }
 
     void frame(boolean moving, AudioEnergy.Levels levels) {
         long now = SystemClock.uptimeMillis();
@@ -58,6 +70,43 @@ final class FractalView extends GLSurfaceView {
     }
 
     private record Frame(float time, int scene, AudioEnergy.Levels levels) {}
+
+    // Ball coordinates sampled from the Laboratory's recorded SPICE match.
+    private static final class TennisReplay {
+        private final float duration;
+        private final float[] times, x, y;
+
+        TennisReplay(Context context) throws IOException {
+            try (DataInputStream data = new DataInputStream(context.getAssets().open("tennis-replay.bin"))) {
+                duration = data.readFloat();
+                int count = data.readInt();
+                if (duration <= 0 || count < 2 || count > 10_000) throw new IOException("Неверная запись матча");
+                times = new float[count];
+                x = new float[count];
+                y = new float[count];
+                for (int i = 0; i < count; i++) {
+                    times[i] = data.readFloat();
+                    x[i] = data.readFloat() * .0073f;
+                    y[i] = data.readFloat() * .0042f - .19f;
+                }
+            }
+        }
+
+        int index(float seconds) {
+            int found = Arrays.binarySearch(times, seconds % duration);
+            return found >= 0 ? found : Math.max(0, -found - 2);
+        }
+
+        void draw(int location, float seconds) {
+            int current = index(seconds);
+            int previous = index(seconds - .07f + duration);
+            // The replay contains resets between serves. Avoid drawing a line across them.
+            if (Math.abs(x[current] - x[previous]) > .17f || Math.abs(y[current] - y[previous]) > .13f) {
+                previous = current;
+            }
+            GLES20.glUniform4f(location, x[current], y[current], x[previous], y[previous]);
+        }
+    }
 
     private static final class Scene implements GLSurfaceView.Renderer {
         private static final String VERTEX = """
@@ -72,11 +121,13 @@ final class FractalView extends GLSurfaceView {
                 .order(ByteOrder.nativeOrder()).asFloatBuffer();
         private final String fragment;
         private final Runnable unavailable;
-        private int program, position, resolution, spectrum, time, scene, width, height;
+        private final TennisReplay replay;
+        private int program, position, resolution, spectrum, time, scene, ball, width, height;
         volatile Frame frame = new Frame(0, 0, AudioEnergy.SILENCE);
 
-        Scene(String fragment, Runnable unavailable) {
+        Scene(String fragment, TennisReplay replay, Runnable unavailable) {
             this.fragment = fragment;
+            this.replay = replay;
             this.unavailable = unavailable;
             vertices.put(new float[]{-1, -1, 1, -1, -1, 1, 1, 1}).position(0);
         }
@@ -100,6 +151,7 @@ final class FractalView extends GLSurfaceView {
                 spectrum = GLES20.glGetUniformLocation(program, "spectrum");
                 time = GLES20.glGetUniformLocation(program, "time");
                 scene = GLES20.glGetUniformLocation(program, "scene");
+                ball = GLES20.glGetUniformLocation(program, "ball");
             } catch (RuntimeException e) {
                 android.util.Log.e("GremlinAmpTV", "Fractal shader failed", e);
                 if (program != 0) GLES20.glDeleteProgram(program);
@@ -138,6 +190,7 @@ final class FractalView extends GLSurfaceView {
             GLES20.glUniform2f(resolution, width, height);
             GLES20.glUniform1f(time, current.time());
             GLES20.glUniform1i(scene, current.scene());
+            if (current.scene() == 1) replay.draw(ball, current.time());
             GLES20.glUniform3f(spectrum, current.levels().bass(), current.levels().middle(), current.levels().treble());
             GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4);
         }

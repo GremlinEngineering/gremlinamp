@@ -2,28 +2,34 @@ package ru.oopssre.gremlinamp;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.app.Dialog;
 import android.content.ClipData;
 import android.content.Intent;
 import android.content.res.ColorStateList;
 import android.graphics.Color;
-import android.graphics.drawable.ColorDrawable;
+import android.graphics.drawable.GradientDrawable;
+import android.graphics.drawable.StateListDrawable;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.provider.Settings;
 import android.text.InputType;
+import android.text.TextUtils;
 import android.view.Gravity;
 import android.view.KeyEvent;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.Window;
 import android.view.WindowManager;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.FrameLayout;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ListView;
+import android.widget.ScrollView;
 import android.widget.TextView;
 
 import org.json.JSONArray;
@@ -38,6 +44,9 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.TreeMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.ExecutorService;
@@ -45,13 +54,17 @@ import java.util.concurrent.Executors;
 import java.util.function.Consumer;
 
 public final class TvActivity extends Activity {
-    private static final int NIGHT = 0xff0b101d, PANEL = 0xff172439, FOCUS = 0xff805522, AMBER = 0xffffbf69;
+    private static final int NIGHT = 0xff141126, PANEL = 0xff261f3c, AMBER = 0xfffbbf55;
+    private static final int INK = 0xfff3ecdb, MUTED = 0xffb9b1ce, ACCENT_INK = 0xff27122b;
+    private static final int ROW_FOCUS = 0xff65442f;
+    private static final String[] CONTINUATION = {"stop", "series", "library", "genre", "similar"};
     private enum Page { RADIO, GAMES, SERIES, ALBUM }
     private final Handler main = new Handler(Looper.getMainLooper());
     private final ExecutorService io = Executors.newSingleThreadExecutor();
     private List<JSONObject> games, series;
     private Page albumParent=Page.GAMES;
-    private String query = "";
+    private String query = "", seriesFilter = "", platformFilter = "";
+    private final Map<String, List<JSONObject>> seriesByGame = new HashMap<>();
     private Page page = Page.RADIO;
     private Library library;
     private TvUpdates updates;
@@ -59,7 +72,8 @@ public final class TvActivity extends Activity {
     private LinearLayout menu;
     private ListView list;
     private TextView heading, status, transport, hint;
-    private Button searchButton, playButton, nextButton, previousButton;
+    private Button searchButton, playButton, nextButton, previousButton, continuationButton;
+    private int selectedScene;
     private AlertDialog updateDialog;
     private TextView updateSummary;
     private boolean installAfterDownload;
@@ -78,37 +92,63 @@ public final class TvActivity extends Activity {
         root.setBackgroundColor(NIGHT);
         menu = new LinearLayout(this);
         menu.setOrientation(LinearLayout.VERTICAL);
-        menu.setPadding(dp(48), dp(28), dp(48), dp(22));
+        menu.setPadding(dp(48), dp(27), dp(48), dp(27));
         root.addView(menu, new FrameLayout.LayoutParams(-1, -1));
         setContentView(root);
 
-        TextView title = text("GREMLINAMP  /  TV", 28, AMBER);
+        TextView title = text("GremlinAmp TV", 30, AMBER);
         menu.addView(title);
         LinearLayout nav = new LinearLayout(this);
         add(nav, "Радио", this::showRadio);
         add(nav, "Игры", () -> showCatalog(Page.GAMES));
         add(nav, "Серии", () -> showCatalog(Page.SERIES));
         searchButton = add(nav, "Поиск", this::search);
-        add(nav, "Демосцена", this::showFractal);
+        add(nav, "Визуализация", this::showFractal);
         add(nav, "Настройки", this::settingsDialog);
         menu.addView(nav);
-        heading = text("", 19, Color.WHITE);
-        status = text("", 15, 0xffb8c8df);
-        menu.addView(heading);
-        menu.addView(status);
+        heading = text("", 24, INK);
+        status = text("", 18, MUTED);
+        LinearLayout content = new LinearLayout(this);
+        menu.addView(content, new LinearLayout.LayoutParams(-1, 0, 1));
+        LinearLayout catalogue = new LinearLayout(this);
+        catalogue.setOrientation(LinearLayout.VERTICAL);
+        content.addView(catalogue, new LinearLayout.LayoutParams(0, -1, 1));
+        catalogue.addView(heading);
+        catalogue.addView(status);
         list = new ListView(this);
-        list.setSelector(new ColorDrawable(FOCUS));
+        list.setId(View.generateViewId());
+        list.setSelector(surface(ROW_FOCUS));
         list.setDividerHeight(1);
         list.setFocusable(true);
-        menu.addView(list, new LinearLayout.LayoutParams(-1, 0, 1));
+        catalogue.addView(list, new LinearLayout.LayoutParams(-1, 0, 1));
+
+        ScrollView playerScroll = new ScrollView(this);
+        playerScroll.setFillViewport(true);
+        playerScroll.setFocusable(false);
+        LinearLayout.LayoutParams playerSize = new LinearLayout.LayoutParams(dp(250), -1);
+        playerSize.setMarginStart(dp(20));
+        content.addView(playerScroll, playerSize);
         LinearLayout controls = new LinearLayout(this);
-        previousButton = add(controls, "◀◀", () -> withService(PlaybackService::previous, false));
-        playButton = add(controls, "Играть / пауза", () -> withService(PlaybackService::toggle, false));
-        nextButton = add(controls, "▶▶", () -> withService(PlaybackService::next, false));
-        transport = text("", 17, Color.WHITE);
-        controls.setGravity(Gravity.CENTER_VERTICAL);
-        controls.addView(transport, new LinearLayout.LayoutParams(0, -2, 1));
-        menu.addView(controls);
+        controls.setOrientation(LinearLayout.VERTICAL);
+        playerScroll.addView(controls);
+        controls.addView(text("Плеер", 22, AMBER));
+        transport = text("Выберите станцию или композицию", 18, INK);
+        transport.setMaxLines(3);
+        transport.setEllipsize(TextUtils.TruncateAt.END);
+        transport.setMinHeight(dp(58));
+        controls.addView(transport);
+        playButton = add(controls, "Играть", () -> withService(PlaybackService::toggle, false));
+        nextButton = add(controls, "Следующий", () -> withService(PlaybackService::next, false));
+        previousButton = add(controls, "Предыдущий", () -> withService(PlaybackService::previous, false));
+        continuationButton = add(controls, "После очереди", this::chooseContinuation);
+        updateContinuationLabel();
+        for (Button button : new Button[]{playButton, nextButton, previousButton, continuationButton}) {
+            button.setNextFocusLeftId(list.getId());
+        }
+        list.setOnKeyListener((view, key, event) -> {
+            if (key != KeyEvent.KEYCODE_DPAD_RIGHT || event.getAction() != KeyEvent.ACTION_DOWN) return false;
+            return (nextButton.isEnabled() ? nextButton : continuationButton).requestFocus();
+        });
         showRadio();
     }
 
@@ -123,18 +163,35 @@ public final class TvActivity extends Activity {
         return view;
     }
 
+    private GradientDrawable surface(int color) {
+        GradientDrawable shape = new GradientDrawable();
+        shape.setColor(color);
+        shape.setCornerRadius(dp(8));
+        return shape;
+    }
+
     private Button add(LinearLayout row, String label, Runnable action) {
         Button button = new Button(this);
         button.setText(label);
         button.setAllCaps(false);
-        button.setTextSize(16);
-        button.setTextColor(Color.WHITE);
+        button.setTextSize(20);
+        button.setPadding(dp(12), 0, dp(12), 0);
         button.setFocusable(true);
-        button.setBackgroundTintList(new ColorStateList(
-                new int[][]{new int[]{android.R.attr.state_focused}, new int[]{}}, new int[]{FOCUS, PANEL}));
+        button.setMinWidth(0);
+        button.setMinimumWidth(0);
+        button.setTextColor(new ColorStateList(
+                new int[][]{{-android.R.attr.state_enabled}, {android.R.attr.state_focused}, {}},
+                new int[]{0xff9289a8, ACCENT_INK, INK}));
+        StateListDrawable background = new StateListDrawable();
+        background.addState(new int[]{android.R.attr.state_focused}, surface(AMBER));
+        background.addState(new int[]{}, surface(PANEL));
+        button.setBackground(background);
         button.setOnClickListener(v -> action.run());
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(-2, dp(50));
-        params.setMarginEnd(dp(8));
+        boolean column = row.getOrientation() == LinearLayout.VERTICAL;
+        if (column) button.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(column ? -1 : -2, dp(56));
+        if (column) params.bottomMargin = dp(8);
+        else params.setMarginEnd(dp(8));
         row.addView(button, params);
         return button;
     }
@@ -144,9 +201,10 @@ public final class TvActivity extends Activity {
             @Override public View getView(int position, View convert, ViewGroup parent) {
                 TextView row = (TextView) super.getView(position, convert, parent);
                 row.setTextSize(20);
-                row.setTextColor(Color.WHITE);
+                row.setTextColor(INK);
                 row.setSingleLine();
-                row.setMinHeight(dp(48));
+                row.setEllipsize(TextUtils.TruncateAt.END);
+                row.setMinHeight(dp(56));
                 return row;
             }
         });
@@ -167,19 +225,19 @@ public final class TvActivity extends Activity {
                 library.preferences.getBoolean(RadioStations.PERSONAL_MODE, false));
         List<String> names = new ArrayList<>();
         for (RadioStations.Station station : stations) names.add(station.title());
-        rows(names, i -> withService(service -> {
-            service.playRadio(stations.get(i));
-            showFractal();
-        }, true));
+        rows(names, i -> withService(service -> service.playRadio(stations.get(i)), true));
     }
 
-    private void showCatalog(Page target) {
+    private void showCatalog(Page target) { showCatalog(target, null); }
+
+    private void showCatalog(Page target, Runnable loaded) {
         int token = ++request;
         page = target;
         searchButton.setEnabled(true);
         heading.setText(target == Page.SERIES ? "Серии игр" : "Музыка игр");
         if (games != null) {
             if (target == Page.SERIES) renderSeries(); else renderGames();
+            if (loaded != null) loaded.run();
             return;
         }
         setMessage("Загружаю каталог…");
@@ -193,15 +251,17 @@ public final class TvActivity extends Activity {
                     if (isDestroyed()) return;
                     games = found;
                     series = groups;
+                    indexSeries();
                     if (token == request) {
                         if (target == Page.SERIES) renderSeries(); else renderGames();
+                        if (loaded != null && running) loaded.run();
                     }
                 });
             } catch (Exception e) {
                 main.post(() -> {
                     if (token != request || isDestroyed()) return;
                     setMessage("Каталог сейчас недоступен · " + e.getMessage());
-                    rows(Collections.singletonList("Повторить"), i -> showCatalog(target));
+                    rows(Collections.singletonList("Повторить"), i -> showCatalog(target, loaded));
                 });
             }
         });
@@ -219,11 +279,10 @@ public final class TvActivity extends Activity {
         List<String> names = new ArrayList<>();
         for (JSONObject item : series) {
             String title = item.optString("title");
-            if (!title.toLowerCase(Locale.ROOT).contains(query)) continue;
             visible.add(item);
             names.add(title + "   ·   " + item.optJSONArray("game_ids").length() + " игр");
         }
-        setMessage(names.isEmpty() ? "Нет серий по этому запросу" : names.size() + " серий");
+        setMessage(names.isEmpty() ? "В каталоге пока нет серий" : names.size() + " серий");
         rows(names, i -> {
             JSONObject group = visible.get(i);
             try {
@@ -239,25 +298,197 @@ public final class TvActivity extends Activity {
         List<String> names = new ArrayList<>();
         for (JSONObject item : games) {
             String title = item.optString("title");
-            if (!title.toLowerCase(Locale.ROOT).contains(query)) continue;
+            if (!matchesGame(item)) continue;
             visible.add(item);
-            names.add(title + "   ·   " + item.optString("platform_label", item.optString("platform")));
+            String details = platformLabel(item);
+            if (item.optInt("year") > 0) details += " · " + item.optInt("year");
+            if (item.optInt("track_count") > 0) details += " · " + item.optInt("track_count") + " тр.";
+            names.add(details.trim().isEmpty() ? title : title + "   ·   " + details);
         }
-        setMessage(names.isEmpty() ? "Ничего не найдено" : names.size() + " игр");
+        String filters = selectedLabel(seriesFilter, series, "id", "title");
+        if (!platformFilter.isEmpty()) {
+            String platform = platformNames().getOrDefault(platformFilter, platformFilter);
+            filters = filters.isEmpty() ? platform : filters + " · " + platform;
+        }
+        setMessage((names.isEmpty() ? "Ничего не найдено" : names.size() + " игр")
+                + (filters.isEmpty() ? "" : " · " + filters));
         rows(names, i -> showCollection(Collections.singletonList(visible.get(i)),visible.get(i).optString("title"),""));
     }
 
+    private void indexSeries() {
+        seriesByGame.clear();
+        for (JSONObject group : series) {
+            JSONArray ids = group.optJSONArray("game_ids");
+            if (ids == null) continue;
+            for (int i = 0; i < ids.length(); i++) {
+                seriesByGame.computeIfAbsent(ids.optString(i), key -> new ArrayList<>()).add(group);
+            }
+        }
+    }
+
+    private static String platformLabel(JSONObject game) {
+        String code = game.optString("platform");
+        String label = game.optString("platform_label");
+        if (!label.isEmpty() && !label.equals(code)) return label;
+        return switch (code) {
+            case "arcade" -> "Аркадные автоматы";
+            case "3do" -> "3DO";
+            case "nes" -> "NES / Famicom";
+            case "snes" -> "Super Nintendo";
+            case "famicom_disk_system" -> "Famicom Disk System";
+            case "game_boy" -> "Game Boy";
+            case "game_boy_color" -> "Game Boy Color";
+            case "game_boy_advance" -> "Game Boy Advance";
+            case "mega_drive" -> "Mega Drive / Genesis";
+            case "master_system" -> "Master System";
+            case "game_gear" -> "Game Gear";
+            case "sg_1000" -> "SG-1000";
+            case "sega_cd" -> "Sega CD";
+            case "sega_32x" -> "Sega 32X";
+            case "playstation" -> "PlayStation";
+            case "playstation2", "playstation_2" -> "PlayStation 2";
+            case "pc_8000_8800" -> "PC-8000 / PC-8800";
+            case "pc_engine" -> "PC Engine";
+            case "pc_engine_cd" -> "PC Engine CD";
+            case "neo_geo_cd" -> "Neo Geo CD";
+            case "neo_geo_pocket" -> "Neo Geo Pocket";
+            case "colecovision" -> "ColecoVision";
+            case "intellivision" -> "Intellivision";
+            case "supervision" -> "Supervision";
+            case "vectrex" -> "Vectrex";
+            case "wonderswan" -> "WonderSwan";
+            default -> code.startsWith("atari_") ? "Atari " + code.substring(6).replace('_', ' ')
+                    : code.replace('_', ' ');
+        };
+    }
+
+    private Map<String, String> platformNames() {
+        Map<String, String> platforms = new TreeMap<>();
+        for (JSONObject game : games) {
+            String platform = game.optString("platform");
+            if (!platform.trim().isEmpty()) platforms.putIfAbsent(platform, platformLabel(game));
+        }
+        return platforms;
+    }
+
+    private boolean matchesGame(JSONObject game) {
+        if (!platformFilter.isEmpty() && !platformFilter.equals(game.optString("platform"))) return false;
+        List<JSONObject> groups = seriesByGame.getOrDefault(game.optString("id"), Collections.emptyList());
+        if (!seriesFilter.isEmpty() && groups.stream().noneMatch(g -> seriesFilter.equals(g.optString("id")))) return false;
+        if (query.isEmpty()) return true;
+        JSONArray ids = game.optJSONArray("ra_ids");
+        if (ids != null) for (int i = 0; i < ids.length(); i++) {
+            if (query.equals(ids.optString(i))) return true;
+        }
+        return contains(game.optString("title"), query)
+                || contains(platformLabel(game), query) || contains(game.optString("platform"), query)
+                || groups.stream().anyMatch(g -> contains(g.optString("title"), query));
+    }
+
+    private static boolean contains(String value, String query) {
+        return value.toLowerCase(Locale.ROOT).contains(query);
+    }
+
+    private static String selectedLabel(String id, List<JSONObject> items, String key, String label) {
+        for (JSONObject item : items) if (id.equals(item.optString(key))) return item.optString(label);
+        return "";
+    }
+
     private void search() {
+        if (games == null) {
+            showCatalog(Page.GAMES, this::search);
+            return;
+        }
+        Map<String, String> platforms = platformNames();
+        List<String> platformIds = new ArrayList<>(platforms.keySet());
+        platformIds.sort(Comparator.comparing(platforms::get, String.CASE_INSENSITIVE_ORDER));
+        platformIds.add(0, "");
+        List<String> seriesNames = new ArrayList<>();
+        seriesNames.add("Все серии");
+        for (JSONObject group : series) seriesNames.add(group.optString("title"));
+
+        String[] draft = {seriesFilter, platformFilter};
+        LinearLayout body = panelBody();
         EditText input = new EditText(this);
         input.setSingleLine();
-        input.setHint("Название игры или серии");
+        input.setTextSize(20);
+        input.setHint("Игра, серия, платформа или RA ID");
         input.setText(query);
-        new AlertDialog.Builder(this).setTitle("Поиск").setView(input)
-                .setNegativeButton("Отмена", null).setPositiveButton("Найти", (d, w) -> {
-                    query = input.getText().toString().trim().toLowerCase(Locale.ROOT);
-                    showCatalog(page == Page.SERIES ? Page.SERIES : Page.GAMES);
-                }).show();
-        input.requestFocus();
+        body.addView(input);
+        Button[] facets = new Button[2];
+        Runnable labels = () -> {
+            String group = selectedLabel(draft[0], series, "id", "title");
+            facets[0].setText("Серия · " + (group.isEmpty() ? "Все серии" : group));
+            facets[1].setText("Платформа · " + platforms.getOrDefault(draft[1], "Все платформы"));
+        };
+        facets[0] = add(body, "", () -> choices("Серия", seriesNames, i -> {
+            draft[0] = i == 0 ? "" : series.get(i - 1).optString("id");
+            labels.run();
+        }));
+        List<String> platformLabels = new ArrayList<>();
+        for (String id : platformIds) platformLabels.add(platforms.getOrDefault(id, "Все платформы"));
+        facets[1] = add(body, "", () -> choices("Платформа", platformLabels, i -> {
+            draft[1] = platformIds.get(i);
+            labels.run();
+        }));
+        labels.run();
+
+        AlertDialog dialog = new AlertDialog.Builder(this).setTitle("Поиск музыки").setView(body)
+                .setNegativeButton("Назад", null)
+                .setNeutralButton("Сбросить", (d, w) -> applySearch("", "", ""))
+                .setPositiveButton("Показать игры", (d, w) ->
+                        applySearch(input.getText().toString(), draft[0], draft[1])).create();
+        dialog.show();
+        dialog.getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN);
+        facets[0].requestFocus();
+    }
+
+    private void applySearch(String words, String group, String platform) {
+        query = words.trim().toLowerCase(Locale.ROOT);
+        seriesFilter = group;
+        platformFilter = platform;
+        showCatalog(Page.GAMES);
+    }
+
+    private void choices(String title, List<String> labels, Consumer<Integer> select) {
+        ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_list_item_1, labels) {
+            @Override public View getView(int position, View view, ViewGroup parent) {
+                TextView row = (TextView) super.getView(position, view, parent);
+                row.setMinHeight(dp(56));
+                row.setTextSize(20);
+                row.setTextColor(INK);
+                return row;
+            }
+        };
+        AlertDialog dialog = new AlertDialog.Builder(this).setTitle(title)
+                .setAdapter(adapter, (d, index) -> select.accept(index)).setNegativeButton("Назад", null).show();
+        dialog.getListView().setSelector(surface(ROW_FOCUS));
+        dialog.getListView().requestFocus();
+    }
+
+    private void updateContinuationLabel() {
+        continuationButton.setText("После очереди");
+        continuationButton.setContentDescription("После очереди · "
+                + Continuation.label(library.preferences.getString("after_album", "stop")));
+    }
+
+    private void chooseContinuation() {
+        String current = library.preferences.getString("after_album", "stop");
+        List<String> labels = new ArrayList<>();
+        for (String mode : CONTINUATION) {
+            labels.add((mode.equals(current) ? "✓  " : "") + switch (mode) {
+                case "series" -> "Следующая игра из той же серии";
+                case "library" -> "Продолжить по всей библиотеке";
+                case "genre" -> "Продолжить по жанру";
+                case "similar" -> "Поставить похожую игру";
+                default -> "Остановиться";
+            });
+        }
+        choices("После последнего трека", labels, i -> {
+            library.preferences.edit().putString("after_album", CONTINUATION[i]).apply();
+            updateContinuationLabel();
+            withService(PlaybackService::refreshContinuation, false);
+        });
     }
 
     private void showCollection(List<JSONObject> collection, String name, String group) {
@@ -293,33 +524,94 @@ public final class TvActivity extends Activity {
                     rows(Collections.singletonList("Повторить"), i -> showCollection(collection, name, group));
                 } else {
                     setMessage(entries.isEmpty() ? "Нет поддерживаемых треков" : names.size() + " треков");
-                    rows(names, i -> withService(service -> { service.play(entries, i); showFractal(); }, true));
+                    rows(names, i -> withService(service -> service.play(entries, i), true));
                 }
             });
         });
     }
 
+    private LinearLayout panelBody() {
+        LinearLayout body = new LinearLayout(this);
+        body.setOrientation(LinearLayout.VERTICAL);
+        body.setPadding(dp(24), dp(12), dp(24), dp(8));
+        return body;
+    }
+
     private void settingsDialog() {
-        List<String> labels = new ArrayList<>();
-        labels.add("Кэш");
-        labels.add("О приложении");
+        List<String> labels = new ArrayList<>(java.util.Arrays.asList("После очереди", "Кэш", "О приложении"));
         if (RadioStations.available(this, true).stream().anyMatch(RadioStations.Station::personal)) {
             labels.add("Личный режим");
         }
-        new AlertDialog.Builder(this).setTitle("Настройки")
-                .setItems(labels.toArray(new String[0]), (dialog, index) -> {
-                    switch (index) {
-                        case 0 -> cacheDialog();
-                        case 1 -> showUpdates();
-                        case 2 -> personalMode();
-                    }
-                }).setNegativeButton("Закрыть", null).show();
+        choices("Настройки", labels, index -> {
+            switch (index) {
+                case 0 -> chooseContinuation();
+                case 1 -> cacheDialog();
+                case 2 -> showAbout();
+                case 3 -> personalMode();
+            }
+        });
+    }
+
+    private void showAbout() {
+        LinearLayout body = panelBody();
+        body.addView(text("GremlinAmp TV", 26, INK));
+        body.addView(text("Версия " + updates.installedVersion() + " · сборка "
+                + updates.installedBuild() + "\nДмитрий Малыхин aka Timon_Crazy", 18, MUTED));
+        Button site = add(body, "Сайт проекта", () -> projectLink(false));
+        add(body, "Исходный код", () -> projectLink(true));
+        add(body, "Обновление приложения", this::showUpdates);
+        add(body, "Музыка и авторы", () -> new AlertDialog.Builder(this)
+                .setTitle("Музыка и авторы")
+                .setMessage("Музыка и авторство отдельных композиций указаны в медиатеке Аркадного зала. "
+                        + "Tennis for Two — запись демо из проекта «Лаборатория Школы Империи».")
+                .setPositiveButton("Закрыть", null).show());
+        showSidePanel("О приложении", body);
+        site.requestFocus();
+    }
+
+    private void projectLink(boolean source) {
+        String title = source ? "Исходный код" : "Сайт проекта";
+        String url = source ? "https://github.com/GremlinEngineering/gremlinamp"
+                : "https://games.oopssre.ru/gremlin.html";
+        LinearLayout body = panelBody();
+        body.addView(text("Откройте ссылку на телефоне или компьютере", 18, INK));
+        ImageView qr = new ImageView(this);
+        qr.setImageResource(source ? R.drawable.tv_source_qr : R.drawable.tv_site_qr);
+        qr.setContentDescription("QR-код · " + title);
+        LinearLayout.LayoutParams qrSize = new LinearLayout.LayoutParams(dp(180), dp(180));
+        qrSize.gravity = Gravity.CENTER_HORIZONTAL;
+        body.addView(qr, qrSize);
+        body.addView(text(url, 17, MUTED));
+        add(body, "Открыть на телевизоре", () -> {
+            try { startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url))); }
+            catch (RuntimeException e) {
+                android.widget.Toast.makeText(this, "Откройте QR-код на телефоне", android.widget.Toast.LENGTH_LONG).show();
+            }
+        });
+        showSidePanel(title, body);
+    }
+
+    private void showSidePanel(String title, LinearLayout body) {
+        Dialog dialog = new Dialog(this);
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
+        body.addView(text(title, 28, AMBER), 0);
+        body.setPadding(dp(24), dp(27), dp(48), dp(27));
+        add(body, "Назад", dialog::dismiss);
+        ScrollView scroll = new ScrollView(this);
+        scroll.setBackgroundColor(NIGHT);
+        scroll.addView(body);
+        dialog.setContentView(scroll);
+        dialog.show();
+        Window window = dialog.getWindow();
+        window.setLayout(dp(410), ViewGroup.LayoutParams.MATCH_PARENT);
+        window.setGravity(Gravity.END | Gravity.TOP);
+        window.setDimAmount(.32f);
     }
 
     private void showUpdates() {
-        updateSummary = text("", 17, Color.WHITE);
+        updateSummary = text("", 20, INK);
         updateSummary.setPadding(dp(24), dp(12), dp(24), dp(12));
-        AlertDialog dialog = new AlertDialog.Builder(this).setTitle("О приложении · GremlinAmp TV")
+        AlertDialog dialog = new AlertDialog.Builder(this).setTitle("Обновление приложения")
                 .setView(updateSummary).setNegativeButton("Закрыть", null)
                 .setNeutralButton("Проверить обновление", null).setPositiveButton("Обновить", null).create();
         updateDialog = dialog;
@@ -500,6 +792,7 @@ public final class TvActivity extends Activity {
     }
 
     private void withService(Consumer<PlaybackService> action, boolean start) {
+        if (!running) return;
         int token = ++command;
         PlaybackService service = PlaybackService.instance;
         if (service != null) {
@@ -538,18 +831,20 @@ public final class TvActivity extends Activity {
             fractal = new FractalView(this, () -> {
                 if (visual) {
                     hideFractal();
-                    setMessage("Фрактальный эффект недоступен на этом устройстве");
+                    setMessage("Визуализация недоступна на этом устройстве");
                 }
             });
         } catch (IOException e) {
-            setMessage("Не удалось открыть фрактальный эффект");
+            setMessage("Не удалось открыть визуализацию");
             return;
         }
         stage.addView(fractal, new FrameLayout.LayoutParams(-1, -1));
-        hint = text("", 18, Color.WHITE);
-        hint.setBackgroundColor(0xb0202030);
-        FrameLayout.LayoutParams overlay = new FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
-        overlay.bottomMargin = dp(42);
+        fractal.selectScene(selectedScene);
+        hint = text("", 19, INK);
+        hint.setPadding(dp(16), dp(8), dp(16), dp(8));
+        hint.setBackgroundColor(0xe6141126);
+        FrameLayout.LayoutParams overlay = new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM);
+        overlay.setMargins(dp(48), 0, dp(48), dp(27));
         stage.addView(hint, overlay);
         visual = true;
         menu.setVisibility(View.GONE);
@@ -565,14 +860,29 @@ public final class TvActivity extends Activity {
     private void showHint() {
         if (!visual) return;
         PlaybackService service = PlaybackService.instance;
-        String title = service == null ? "Деморежим" : service.identity.snapshot().title;
-        hint.setText(title + "  ·  " + fractal.sceneName() + "\nОК — пауза / игра   ← → — сцена   Назад — к списку");
-        hint.setVisibility(View.VISIBLE);
-        main.removeCallbacks(hideHint);
-        main.postDelayed(hideHint, 4800);
+        boolean hasMusic = service != null && (service.station != null || service.currentEntry() != null);
+        boolean next = hasMusic && service.canNext();
+        String guide = "← → Смена сцены   ·   ↑ Список сцен   ·   Назад к списку";
+        if (hasMusic) guide += service.state.wantsPlayback() ? "   ·   ОК Пауза" : "   ·   ОК Играть";
+        else guide = "← → Смена сцены   ·   ОК Список сцен   ·   Назад к списку";
+        if (next) guide += "   ·   ↓ Следующий трек";
+        String text = fractal.sceneName() + "   ·   " + fractal.sceneDescription() + "\n" + guide;
+        if (!TextUtils.equals(hint.getText(), text)) hint.setText(text);
     }
 
-    private final Runnable hideHint = () -> { if (hint != null) hint.setVisibility(View.GONE); };
+    private void selectScene(int scene) {
+        selectedScene = Math.floorMod(scene, FractalView.SCENES.length);
+        fractal.selectScene(selectedScene);
+        showHint();
+    }
+
+    private void chooseScene() {
+        List<String> labels = new ArrayList<>();
+        for (int i = 0; i < FractalView.SCENES.length; i++) {
+            labels.add((i == selectedScene ? "✓  " : "") + FractalView.SCENES[i]);
+        }
+        choices("Сцены визуализации", labels, this::selectScene);
+    }
 
     private void resumeStage() {
         if (running && visual && !stageActive) {
@@ -593,7 +903,6 @@ public final class TvActivity extends Activity {
     private void hideFractal() {
         if (!visual) return;
         pauseStage();
-        main.removeCallbacks(hideHint);
         root.removeView(stage);
         stage = null;
         fractal = null;
@@ -609,7 +918,8 @@ public final class TvActivity extends Activity {
             if (!stageActive) return;
             PlaybackService service = PlaybackService.instance;
             boolean playing = service != null && service.state == TransportState.PLAYING;
-            boolean demo = service == null || service.state == TransportState.IDLE;
+            boolean demo = service == null || service.station == null && service.currentEntry() == null
+                    || service.state == TransportState.ENDED;
             fractal.frame(playing || demo, playing ? service.audioEnergy.levels() : AudioEnergy.SILENCE);
             main.postDelayed(this, 33);
         }
@@ -623,8 +933,10 @@ public final class TvActivity extends Activity {
             previousButton.setEnabled(service != null && service.currentEntry() != null);
             nextButton.setEnabled(service != null && service.canNext());
             playButton.setEnabled(service != null && (service.station != null || service.currentEntry() != null));
+            String playLabel = service != null && service.state.wantsPlayback() ? "Пауза" : "Играть";
+            if (!TextUtils.equals(playButton.getText(), playLabel)) playButton.setText(playLabel);
             if (service == null) {
-                transport.setText("");
+                transport.setText("Выберите станцию или композицию");
                 shownError = "";
             } else {
                 String state = switch (service.state) {
@@ -646,6 +958,7 @@ public final class TvActivity extends Activity {
                     shownError = "";
                 }
             }
+            showHint();
             main.postDelayed(this, 350);
         }
     };
@@ -656,12 +969,23 @@ public final class TvActivity extends Activity {
                 || key == KeyEvent.KEYCODE_MEDIA_PAUSE || key == KeyEvent.KEYCODE_MEDIA_NEXT
                 || key == KeyEvent.KEYCODE_MEDIA_PREVIOUS;
         boolean sceneKey = visual && (key == KeyEvent.KEYCODE_DPAD_LEFT || key == KeyEvent.KEYCODE_DPAD_RIGHT
+                || key == KeyEvent.KEYCODE_DPAD_UP || key == KeyEvent.KEYCODE_DPAD_DOWN
                 || key == KeyEvent.KEYCODE_DPAD_CENTER || key == KeyEvent.KEYCODE_ENTER);
         if (!media && !sceneKey) return super.dispatchKeyEvent(event);
         if (event.getAction() == KeyEvent.ACTION_UP) {
             switch (key) {
-                case KeyEvent.KEYCODE_DPAD_LEFT -> { fractal.nextScene(-1); showHint(); }
-                case KeyEvent.KEYCODE_DPAD_RIGHT -> { fractal.nextScene(1); showHint(); }
+                case KeyEvent.KEYCODE_DPAD_LEFT -> selectScene(selectedScene - 1);
+                case KeyEvent.KEYCODE_DPAD_RIGHT -> selectScene(selectedScene + 1);
+                case KeyEvent.KEYCODE_DPAD_UP -> chooseScene();
+                case KeyEvent.KEYCODE_DPAD_DOWN -> withService(service -> {
+                    if (service.canNext()) service.next();
+                }, false);
+                case KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
+                    PlaybackService service = PlaybackService.instance;
+                    if (service != null && (service.station != null || service.currentEntry() != null)) service.toggle();
+                    else chooseScene();
+                    showHint();
+                }
                 case KeyEvent.KEYCODE_MEDIA_PLAY -> withService(PlaybackService::resume, false);
                 case KeyEvent.KEYCODE_MEDIA_PAUSE -> withService(PlaybackService::pause, false);
                 case KeyEvent.KEYCODE_MEDIA_PREVIOUS -> withService(PlaybackService::previous, false);
@@ -695,6 +1019,12 @@ public final class TvActivity extends Activity {
         main.removeCallbacks(refresh);
         pauseStage();
         super.onPause();
+    }
+
+    @Override protected void onStop() {
+        command++;
+        stopService(new Intent(this, PlaybackService.class));
+        super.onStop();
     }
 
     @Override protected void onDestroy() {
