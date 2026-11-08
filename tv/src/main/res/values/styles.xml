@@ -1,0 +1,8 @@
+<resources>
+    <style name="GremlinAmpTvTheme" parent="android:style/Theme.Material.NoActionBar">
+        <item name="android:colorAccent">#FBBF55</item>
+        <item name="android:fontFamily">sans</item>
+        <item name="android:windowBackground">#141126</item>
+        <item name="android:windowFullscreen">true</item>
+    </style>
+</resources>

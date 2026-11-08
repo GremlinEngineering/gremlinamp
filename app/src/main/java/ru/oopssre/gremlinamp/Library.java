@@ -312,6 +312,7 @@ class Library {
   }
   return result;
  }
+ boolean continueLocal(){return !streaming&&preferences.getBoolean("continue_local",true);}
  JSONArray series(boolean refresh)throws Exception{return catalog(refresh).getJSONArray("series");}
  List<JSONObject> seriesGames(JSONObject series,List<JSONObject> games)throws Exception {
   Map<String,JSONObject> byId=new HashMap<>();for(JSONObject g:games)byId.put(g.getString("id"),g);

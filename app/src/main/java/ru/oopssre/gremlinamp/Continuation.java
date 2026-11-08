@@ -29,7 +29,7 @@ final class Continuation {
   for(JSONObject g:all){String id=g.optString("id");if(played.contains(id)||id.equals(seed.optString("id")))continue;
    if(!platform.isEmpty()&&!platform.equals(g.optString("platform_label")))continue;
    if(!year.isEmpty()&&!year.equals(g.has("year")?String.valueOf(g.optInt("year")):"Не указан"))continue;
-   if(l.preferences.getBoolean("continue_local",true)&&!l.fullyLocal(g))continue;
+   if(l.continueLocal()&&!l.fullyLocal(g))continue;
    int score=ContinuationRules.score(mode,seriesOrder.containsKey(id),sourceGenres,genres(g),g.optString("platform").equals(seed.optString("platform")));
    if(score>0){scores.put(id,score);result.add(g);}
   }
