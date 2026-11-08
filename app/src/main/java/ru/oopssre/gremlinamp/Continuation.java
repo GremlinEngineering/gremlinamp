@@ -2,9 +2,12 @@ package ru.oopssre.gremlinamp;
 import org.json.*;
 import java.util.*;
 final class Continuation {
- static String label(String mode){return switch(mode){case "rhythm"->"по ритму";case "sound"->"по звучанию";case "series"->"по серии";case "genre"->"по жанру";case "similar"->"похожие игры";default->"остановиться";};}
+ static String label(String mode){return switch(mode){case "rhythm"->"по ритму";case "sound"->"по звучанию";case "series"->"по серии";case "library"->"по всей библиотеке";case "genre"->"по жанру";case "similar"->"похожие игры";default->"остановиться";};}
  static Set<String> genres(JSONObject game){Set<String> result=new HashSet<>();JSONObject terms=game.optJSONObject("terms");JSONObject g=terms==null?null:terms.optJSONObject("genre");if(g!=null)for(java.util.Iterator<String> it=g.keys();it.hasNext();)result.add(it.next());JSONObject p=game.optJSONObject("profile_genres");if(p!=null)for(java.util.Iterator<String> it=p.keys();it.hasNext();)result.add(it.next());return result;}
  static List<JSONObject> candidates(Library l,JSONObject current,Set<String> played)throws Exception {
+  return candidates(l,current,played,"");
+ }
+ static List<JSONObject> candidates(Library l,JSONObject current,Set<String> played,String activeSeries)throws Exception {
   String mode=l.preferences.getString("after_album","stop");if(mode.equals("stop"))return Collections.emptyList();
   JSONArray rows=l.catalog(false).getJSONArray("games");List<JSONObject> all=new ArrayList<>();for(int i=0;i<rows.length();i++)all.add(rows.getJSONObject(i));
   all=l.enrichGames(all);JSONObject seed=current;for(JSONObject g:all)if(g.optString("id").equals(current.optString("id")))seed=g;
@@ -12,7 +15,9 @@ final class Continuation {
   try{
    JSONArray series=l.series(false);
    for(int i=0;i<series.length();i++){
-    List<JSONObject> members=l.seriesGames(series.getJSONObject(i),all);
+    JSONObject item=series.getJSONObject(i);
+    if(mode.equals("series")&&!activeSeries.isEmpty()&&!activeSeries.equals(item.optString("id")))continue;
+    List<JSONObject> members=l.seriesGames(item,all);
     for(int start=0;start<members.size();start++)if(members.get(start).optString("id").equals(current.optString("id")))
      for(int offset=1;offset<members.size();offset++){
       String id=members.get((start+offset)%members.size()).optString("id");
@@ -34,7 +39,9 @@ final class Continuation {
    int cmp=Integer.compare(scores.get(bid),scores.get(aid));
    if(cmp!=0)return cmp;
    cmp=Integer.compare(a.optInt("year",9999),b.optInt("year",9999));
-   return cmp!=0?cmp:a.optString("title").compareToIgnoreCase(b.optString("title"));
+   if(cmp!=0)return cmp;
+   cmp=a.optString("title").compareToIgnoreCase(b.optString("title"));
+   return cmp!=0?cmp:aid.compareTo(bid);
   });
   return result;
  }

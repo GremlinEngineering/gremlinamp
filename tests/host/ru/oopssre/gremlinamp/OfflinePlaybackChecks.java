@@ -82,6 +82,27 @@ public final class OfflinePlaybackChecks {
   CountDownLatch artworkEntered=new CountDownLatch(1),releaseArtwork=new CountDownLatch(1);Context online=new Context(Files.createTempDirectory("gremlin-art-delay").toFile());android.net.NetworkCapabilities net=new android.net.NetworkCapabilities();net.wifi=true;net.internet=true;online.cm.caps=net;
   Library slowArt=new Library(online){File cover(JSONObject g)throws Exception{artworkEntered.countDown();releaseArtwork.await();return new File(root,"missing");}void measureTrack(JSONObject t){throw new AssertionError("playback must not wait for duration scan");}};Library.atomic(slowArt.assetFile(asset),new byte[]{1,2,3});
   try(RealProbe p=new RealProbe(slowArt)){p.queue=List.of(new PlaybackService.Entry(game,manifest,0));p.start(0);check(artworkEntered.await(1,TimeUnit.SECONDS),"poster operation started");await(()->p.audioStarted);check(releaseArtwork.getCount()==1,"downloaded audio starts while optional poster is still blocked");releaseArtwork.countDown();}
+  RadioStations.Station first=new RadioStations.Station("Test A","https://example.com/a",false);
+  RadioStations.Station second=new RadioStations.Station("Test B","https://example.com/b",true);
+  try(Probe p=new Probe(l)){
+   p.am=new android.media.AudioManager();p.session=new android.media.session.MediaSession(p,"test");
+   PlaybackService.Entry fromSeries=new PlaybackService.Entry(game,manifest,0,"series-a","Series A");
+   p.queue=List.of(fromSeries);p.state="playing";
+   check(p.playingSeries().equals("series-a"),"the series belongs to the playing entry");
+   p.playRadio(second);check(p.station==null&&!p.queue.isEmpty(),"locked preset cannot replace the game queue");
+   p.playRadio(first);RadioPlayback.Callback outdated=RadioPlayback.callback;
+   check(p.station.equals(first)&&p.queue.isEmpty()&&p.state.equals("loading"),"radio owns playback without a stale game queue");
+   p.playRadio(first);check(RadioPlayback.starts==1,"repeated station selection during connection is ignored");
+   l.preferences.edit().putBoolean(RadioStations.PERSONAL_MODE,true).apply();
+   p.playRadio(second);check(RadioPlayback.starts==2&&p.station.equals(second),"selecting a different station switches once");
+   outdated.state("error","late error");check(p.state.equals("loading"),"late callback cannot replace a newer station state");
+   RadioPlayback.callback.state("playing","");check(p.state.equals("playing")&&!p.paused,"ready stream plays");
+   p.pause();check(p.paused&&p.state.equals("paused")&&RadioPlayback.stops==1,"Stop disconnects the stream");
+   p.resume();check(RadioPlayback.starts==3&&p.state.equals("loading"),"Play reconnects at the live point");
+   RadioPlayback.callback.state("error","timeout");check(p.paused&&p.error.equals("timeout"),"stream failure is retryable");
+   p.play(List.of(fromSeries),0,false);
+   check(p.station==null&&RadioPlayback.releases==1&&p.playingSeries().equals("series-a"),"returning to a series releases radio and restores queue ownership");
+  }
   System.out.println(checks+" offline/playback checks passed: posters, snapshot recovery, history, repeat, transport and asynchronous artwork");
  }
 }

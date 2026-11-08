@@ -2,13 +2,14 @@ plugins { id 'com.android.application' }
 android {
  namespace 'ru.oopssre.gremlinamp'
  compileSdk 35
+ buildToolsVersion '35.0.0'
  ndkVersion '27.0.12077973'
  defaultConfig {
   applicationId 'ru.oopssre.gremlinamp'
   minSdk 26
   targetSdk 35
-  versionCode 18
-  versionName '0.2.8'
+  versionCode 19
+  versionName '0.2.9'
   externalNativeBuild { cmake { cppFlags '-std=c++17'; arguments '-DGME_BUILD_EXAMPLES=OFF', '-DGME_BUILD_TESTING=OFF', '-DGME_BUILD_SHARED=OFF', '-DGME_BUILD_STATIC=ON', '-DGME_ZLIB=ON' } }
   ndk { abiFilters 'arm64-v8a', 'armeabi-v7a', 'x86_64' }
  }
@@ -23,4 +24,9 @@ tasks.named('preBuild').configure {
    throw new GradleException('Import music_player.zip with tools/import-site-engine.py before building.')
   }
  }
+}
+
+dependencies {
+ implementation "androidx.media3:media3-exoplayer:1.8.1"
+ implementation "androidx.media3:media3-exoplayer-hls:1.8.1"
 }

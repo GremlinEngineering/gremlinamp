@@ -18,3 +18,7 @@ The local YM2413 adapter (gme/Ym2413_Emu.cpp and its header) replaces the disabl
 ## Site WebAssembly decoder bundle
 
 The decoder modules and original notices are imported from the project's `music_player.zip`. The import preserves the original worker and runtime files. Corresponding source packages and their provenance records are in the same site bundle under `music_player/vendor/`. Each component retains its own license. The MIT license covers the GremlinAmp adapter and application code.
+
+## Internet radio playback
+
+AndroidX Media3 1.8.1 (ExoPlayer and its HLS module) and the bundled AndroidX, Guava and Kotlin runtime libraries retain their Apache 2.0 licenses. The license text is in `app/src/main/assets/THIRD_PARTY_NOTICES.txt`. Radio streams come directly from their stations and retain their original terms.
