@@ -1,17 +1,29 @@
 #include <jni.h>
 #include "game-music-emu/gme/gme.h"
 static void error(JNIEnv* e, const char* s) { if(s)e->ThrowNew(e->FindClass("java/io/IOException"),s); }
-extern "C" JNIEXPORT jlong JNICALL Java_ru_oopssre_gremlinamp_Gme_open(JNIEnv* e,jclass,jstring path,jint song){
- const char* p=e->GetStringUTFChars(path,0); Music_Emu* m=nullptr;
- const char* err=gme_open_file(p,&m,44100); e->ReleaseStringUTFChars(path,p);
+static jlong start(JNIEnv* e, Music_Emu* m, jint song, const char* err) {
  if(err){error(e,err);return 0;} gme_clear_playlist(m);gme_set_autoload_playback_limit(m,0);
  if(song<0 || song>=gme_track_count(m)){gme_delete(m);error(e,"Invalid subsong");return 0;}
  err=gme_start_track(m,song); if(err){gme_delete(m);error(e,err);return 0;}
  return reinterpret_cast<jlong>(m);
 }
-extern "C" JNIEXPORT void JNICALL Java_ru_oopssre_gremlinamp_Gme_render(JNIEnv* e,jclass,jlong h,jshortArray out){
+extern "C" JNIEXPORT jlong JNICALL Java_ru_oopssre_gremlinamp_Gme_open(JNIEnv* e,jclass,jstring path,jint song){
+ const char* p=e->GetStringUTFChars(path,0); Music_Emu* m=nullptr;
+ if(!p)return 0;
+ const char* err=gme_open_file(p,&m,44100); e->ReleaseStringUTFChars(path,p);
+ return start(e,m,song,err);
+}
+extern "C" JNIEXPORT jlong JNICALL Java_ru_oopssre_gremlinamp_Gme_openBuffer(JNIEnv* e,jclass,jbyteArray bytes,jint song){
+ jbyte* data=e->GetByteArrayElements(bytes,0);if(!data)return 0;
+ Music_Emu* m=nullptr;const char* err=gme_open_data(data,e->GetArrayLength(bytes),&m,44100);
+ e->ReleaseByteArrayElements(bytes,data,JNI_ABORT);
+ return start(e,m,song,err);
+}
+extern "C" JNIEXPORT void JNICALL Java_ru_oopssre_gremlinamp_Gme_render(JNIEnv* e,jclass,jlong h,jshortArray out,jint frames){
  auto m=reinterpret_cast<Music_Emu*>(h); if(!m)return;
- jshort* p=e->GetShortArrayElements(out,0); const char* err=gme_play(m,e->GetArrayLength(out),p);e->ReleaseShortArrayElements(out,p,0);error(e,err);
+ if(frames<0 || frames>e->GetArrayLength(out)/2){error(e,"Invalid GME output buffer");return;}
+ jshort* p=e->GetShortArrayElements(out,0);if(!p)return;
+ const char* err=gme_play(m,frames*2,p);e->ReleaseShortArrayElements(out,p,0);error(e,err);
 }
 extern "C" JNIEXPORT void JNICALL Java_ru_oopssre_gremlinamp_Gme_close(JNIEnv*,jclass,jlong h){if(h)gme_delete(reinterpret_cast<Music_Emu*>(h));}
 

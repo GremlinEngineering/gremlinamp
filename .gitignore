@@ -1,4 +1,5 @@
 /build/
+.DS_Store
 /.gradle/
 /app/build/
 /app/.cxx/
@@ -8,10 +9,12 @@
 *.jks
 *.apk
 
-# Site decoder runtime imported from the supplied music_player.zip.
+# Legacy site engine left by older local builds.
 app/src/main/assets/site-engine/
 
 # Personal presets belong only in the locally built APK.
 /app/src/main/assets/personal-radio.json
+/app/src/main/assets/space/voyager-plasma.pcm
 
 /tv/build/
+/tv/.cxx/

@@ -14,10 +14,8 @@ import java.util.Set;
 final class MusicContract {
     static final String INDEX = Library.BASE + "music/game-index.json";
     static final String RECEIPT = Library.BASE + "music/library.json";
-    // Kept in sync with the attached site's decoders.js by tools/import-site-engine.py.
-    private static final String SITE_FORMATS = "a26 a5m a5z a78 acm acz agm agz ay bms bmz c3m c3z dcm dcz dkm dsf e6m e6z f3m f3z g0m g0z gbm gbs gbz gsf gym hes it ivm ivz jgm jgz k0m k0z kim kiz kscc kss kssx lsm lsz m2s m2z mdm mdz minidsf minigsf minipsf minissf miniusf mod mrm mtm nfm nfz ngl ngz nsf nsfe nws nwz psf psid rsid s3m s98 sap sgc sid spc spt spz ssf stm stz svm svz tmc usf vgm vgz vxm vxz wsm wsr wsz xa xm";
-    private static final Set<String> NATIVE = new HashSet<>(Arrays.asList(SITE_FORMATS.split(" ")));
-
+    private static final Set<String> LIBVGM = new HashSet<>(Arrays.asList("vgm", "vgz", "s98", "tmc"));
+    private static final Set<String> GME = new HashSet<>(Arrays.asList("ay", "gym", "hes", "kss", "kssx", "kscc", "nsf", "nsfe", "sap", "spc"));
     static JSONObject catalog(JSONObject index) throws Exception {
         if (index.getInt("schema_version") != 1) throw new IOException("Версия музыкального каталога не поддерживается");
         JSONObject entries = index.getJSONObject("games");
@@ -120,26 +118,69 @@ final class MusicContract {
     static String decoder(JSONObject track) {
         JSONObject asset = track.optJSONObject("asset");
         if (asset == null) return "";
-        String format = asset.optString("format", track.optString("format")).toLowerCase(Locale.ROOT);
+        String format = decoderFormat(track, asset);
         String backend = track.optString("backend");
         if (backend.equals("media") && format.equals("wav")) return "wav";
-        if (backend.equals("native")) {
+        if (backend.equals("native") || backend.equals("gme")) {
             if (wav(track) != null) return "fallback";
-            return NATIVE.contains(format.replaceFirst("^\\.", "")) ? "site" : "";
+            if (LIBVGM.contains(format)) return "vgm";
+            if (format.equals("sgc") || format.equals("gbs")) return "gme-plus";
+            if (format.equals("gsf") || format.equals("minigsf")) return "gsf";
+            if (format.equals("psf") || format.equals("minipsf")) return "psf";
+            if (format.equals("dsf") || format.equals("minidsf")) return "dsf";
+            if (format.equals("ssf") || format.equals("minissf")) return "ssf";
+            if (format.equals("usf") || format.equals("miniusf")) return "usf";
+            if (format.equals("xa")) return "xa";
+            if (Arrays.asList("sid", "psid", "rsid").contains(format)) return "sid";
+            if (format.equals("stm")) return "stm";
+            if (Arrays.asList("mod", "xm", "it", "s3m", "mtm").contains(format)) return "openmpt";
+            if (Arrays.asList("agm", "agz", "gbm", "gbz", "ivm", "ivz", "jgm", "jgz", "mdm", "mdz",
+                    "stz", "svm", "svz", "vxm", "vxz", "wsm", "wsz", "nfm", "nfz", "a5m", "a5z").contains(format))
+                return "machine";
+            if (GME.contains(format)) return "gme";
+            if (!board(format).isEmpty()) return "board";
+            return "";
         }
-        if (backend.equals("gme")) return "gme";
         // Downloaded playlists written by older clients retain their existing media backend.
         if (backend.equals("media") && Arrays.asList("mp3", "ogg", "flac", "m4a", "aac").contains(format)) return "media";
         return "";
     }
 
+    static String decoderFormat(JSONObject track, JSONObject asset) {
+        return asset.optString("format", track.optString("format")).toLowerCase(Locale.ROOT).replaceFirst("^\\.", "");
+    }
+
+    static String board(String format) {
+        return switch (format) {
+            case "a26", "a78", "wsr" -> format;
+            case "acm", "acz" -> "acm";
+            case "bms", "bmz" -> "bms";
+            case "c3m", "c3z" -> "cps3";
+            case "dkm" -> "dk";
+            case "dcm", "dcz" -> "dcs";
+            case "g0m", "g0z" -> "g0";
+            case "k0m", "k0z" -> "k0";
+            case "e6m", "e6z" -> "e6m";
+            case "f3m", "f3z" -> "f3";
+            case "kim", "kiz" -> "ki";
+            case "lsm", "lsz" -> "lsm";
+            case "m2s", "m2z" -> "m2s";
+            case "mrm" -> "mario";
+            case "ngl", "ngz" -> "ngl";
+            case "nws", "nwz" -> "nws";
+            case "snes-registers" -> "theme-snes";
+            case "spt", "spz" -> "spt";
+            default -> "";
+        };
+    }
+
+    static String board(JSONObject track) { return board(decoderFormat(track, track.optJSONObject("asset"))); }
+
+    static boolean decoderNeedsInputs(String decoder) { return Arrays.asList("gsf", "psf", "dsf", "ssf", "usf").contains(decoder); }
+
     static String streamingDecoder(JSONObject track) {
         String engine = decoder(track);
-        return switch (engine) {
-            case "gme" -> NATIVE.contains(track.optJSONObject("asset").optString("format").toLowerCase(Locale.ROOT)) ? "site" : "";
-            case "media" -> "";
-            default -> engine;
-        };
+        return engine.equals("media") ? "" : engine;
     }
 
     static double gain(JSONObject track) {

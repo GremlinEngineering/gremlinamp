@@ -71,7 +71,12 @@ final class WavPcm implements AutoCloseable {
     private long uint32() throws IOException { return Integer.toUnsignedLong(Integer.reverseBytes(readInt())); }
 
     void render(short[] stereo) throws IOException {
-        int bytes = (int) Math.min((long) stereo.length * channels, end - position());
+        int frames = render(stereo, stereo.length / 2);
+        Arrays.fill(stereo, frames * 2, stereo.length, (short) 0);
+    }
+
+    int render(short[] stereo, int frames) throws IOException {
+        int bytes = (int) Math.min((long) frames * channels * 2, end - position());
         readBlock(bytes);
         int sample = 0;
         for (int i = 0; i < bytes; i += channels * 2) {
@@ -79,10 +84,16 @@ final class WavPcm implements AutoCloseable {
             stereo[sample++] = left;
             stereo[sample++] = channels == 1 ? left : (short) ((block[i + 2] & 255) | block[i + 3] << 8);
         }
-        Arrays.fill(stereo, sample, stereo.length, (short) 0);
+        return sample / 2;
     }
 
-    void seek(int ms) throws IOException { position(Math.min(end, start + (long) ms * rate / 1000 * channels * 2)); }
+    long duration() { return (end - start) / (channels * 2); }
+
+    long seek(long frame) throws IOException {
+        long target = Math.min(duration(), frame);
+        position(start + target * channels * 2);
+        return target;
+    }
 
     boolean ended() {
         try { return position() >= end; }

@@ -29,7 +29,7 @@ class Library {
  static String hex(byte[] bytes){StringBuilder s=new StringBuilder();for(byte b:bytes)s.append(String.format(java.util.Locale.ROOT,"%02x",b&255));return s.toString();}
  static String hash(byte[] b)throws Exception {return hex(MessageDigest.getInstance("SHA-256").digest(b));}
  static byte[] request(String url,int limit) throws Exception {
-  HttpURLConnection c=(HttpURLConnection)new URL(url).openConnection();c.setConnectTimeout(15000);c.setReadTimeout(30000);c.setInstanceFollowRedirects(false);
+  HttpURLConnection c=NetworkPolicy.openHttp(new URL(url));c.setConnectTimeout(15000);c.setReadTimeout(30000);c.setInstanceFollowRedirects(false);
   try {if(c.getResponseCode()!=200)throw new IOException("HTTP "+c.getResponseCode());
    try(InputStream in=c.getInputStream();ByteArrayOutputStream out=new ByteArrayOutputStream()){
     byte[] b=new byte[32768];int n;while((n=in.read(b))!=-1){if(out.size()+n>limit)throw new IOException("Слишком большой файл");out.write(b,0,n);}return out.toByteArray();}
@@ -107,33 +107,70 @@ class Library {
   DOWNLOAD_LOCK.lockInterruptibly();
   try{archive.update(progress);}finally{DOWNLOAD_LOCK.unlock();}
  }
+ HttpURLConnection openArchiveConnection(MusicArchive.Receipt receipt)throws IOException {
+  return NetworkPolicy.openHttp(new URL(receipt.url));
+ }
  void transferArchive(MusicArchive.Receipt receipt,File zip,Progress progress)throws Exception{
+  checkCancelled();
   requireNetwork();
-  if(receipt.bytes>zip.getUsableSpace())throw new IOException("Недостаточно места для ZIP");
-  HttpURLConnection connection=(HttpURLConnection)new URL(receipt.url).openConnection();
+  long offset=zip.length();
+  if(receipt.bytes-offset>zip.getParentFile().getUsableSpace())throw new IOException("Недостаточно места для ZIP");
+  File validator=MusicArchive.validator(zip);
+  String previous=offset>0&&validator.isFile()?new String(Files.readAllBytes(validator.toPath()),java.nio.charset.StandardCharsets.US_ASCII):"";
+  HttpURLConnection connection=openArchiveConnection(receipt);
   connection.setConnectTimeout(15000);connection.setReadTimeout(30000);connection.setInstanceFollowRedirects(false);
+  connection.setRequestProperty("Accept-Encoding","identity");
+  if(offset>0){
+   connection.setRequestProperty("Range","bytes="+offset+"-");
+   if(strongEtag(previous))connection.setRequestProperty("If-Range",previous);
+  }
   transfers.add(connection);
   try{
    int status=connection.getResponseCode();
-   if(status!=200)throw new IOException("HTTP "+status);
+   String etag=connection.getHeaderField("ETag");
+   long end=receipt.bytes;
+   if(status==200){
+    if(offset>0&&strongEtag(previous)&&strongEtag(etag)&&!previous.equals(etag))throw new MusicArchive.Integrity();
+    offset=0;
+   }
+   else if(status==206&&offset>0){
+    end=archiveRangeEnd(connection.getHeaderField("Content-Range"),offset,receipt.bytes);
+    if(strongEtag(previous)&&etag!=null&&!previous.equals(etag))throw new MusicArchive.Integrity();
+   }else if(status==416)throw new MusicArchive.Integrity();
+   else throw new IOException("HTTP "+status);
    long declared=connection.getContentLengthLong();
-   if(declared>=0&&declared!=receipt.bytes)throw new MusicArchive.Integrity();
-   try(InputStream in=connection.getInputStream();FileOutputStream out=new FileOutputStream(zip)){
-    byte[] buffer=new byte[64*1024];int n;long count=0,last=0;
-    progress.update("Скачиваю ZIP · 0%");
+   if(declared>=0&&declared!=end-offset)throw new MusicArchive.Integrity();
+   checkCancelled();
+   try(InputStream in=connection.getInputStream();FileOutputStream out=new FileOutputStream(zip,offset>0)){
+    if(strongEtag(etag))atomic(validator,etag.getBytes(java.nio.charset.StandardCharsets.US_ASCII));
+    else if(offset==0)Files.deleteIfExists(validator.toPath());
+    byte[] buffer=new byte[64*1024];int n;long count=offset,last=offset;
+    progress.update((offset>0?"Докачиваю ZIP · ":"Скачиваю ZIP · ")+archivePercent(count,receipt.bytes));
     while((n=in.read(buffer))!=-1){
-     checkCancelled();requireNetwork();count+=n;
-     if(count>receipt.bytes)throw new MusicArchive.Integrity();
+     checkCancelled();requireNetwork();
+     if(n>end-count)throw new MusicArchive.Integrity();
      out.write(buffer,0,n);
-     if(count-last>=4*1024*1024){last=count;progress.update("Скачиваю ZIP · "+(int)(100.0*count/receipt.bytes)+"%");}
+     count+=n;
+     if(count-last>=4*1024*1024){last=count;progress.update("Скачиваю ZIP · "+archivePercent(count,receipt.bytes));}
     }
     out.getFD().sync();
+    if(count!=receipt.bytes)throw new IOException("ZIP получен не полностью · "+archivePercent(count,receipt.bytes));
    }
   }finally{transfers.remove(connection);connection.disconnect();}
  }
+ private static String archivePercent(long count,long total){return (int)(100.0*count/total)+"%";}
+ private static boolean strongEtag(String value){return value!=null&&value.matches("\"[^\\p{Cntrl}\"]*\"");}
+ private static long archiveRangeEnd(String value,long offset,long total)throws IOException{
+  java.util.regex.Matcher range=java.util.regex.Pattern.compile("bytes ([0-9]+)-([0-9]+)/([0-9]+)").matcher(value==null?"":value);
+  if(range.matches())try{
+   long start=Long.parseLong(range.group(1)),end=Long.parseLong(range.group(2)),size=Long.parseLong(range.group(3));
+   if(start==offset&&size==total&&end>=start&&end<total)return end+1;
+  }catch(NumberFormatException ignored){}
+  throw new MusicArchive.Integrity();
+ }
  File assetFile(JSONObject asset)throws Exception {
   String h=asset.getString("sha256"),fmt=asset.getString("format");
-  if(!h.matches("[0-9a-f]{64}")||!fmt.matches("[a-z0-9]{1,8}"))throw new IOException("Неверный идентификатор файла");
+  if(!h.matches("[0-9a-f]{64}")||!fmt.matches("[a-z0-9]{1,16}(?:-[a-z0-9]{1,16})?"))throw new IOException("Неверный идентификатор файла");
   return new File(root,"v1-files/"+h+"."+fmt);
  }
  boolean available(JSONObject a)throws Exception {File f=assetFile(a);return f.isFile()&&f.length()==a.getLong("bytes");}
@@ -147,7 +184,7 @@ class Library {
  boolean playableLocal(JSONObject manifest,JSONObject track)throws Exception{
   String decoder=MusicContract.decoder(track);
   if(decoder.isEmpty())return false;
-  if(decoder.equals("site"))return savedTrack(manifest,track);
+  if(MusicContract.decoderNeedsInputs(decoder))return savedTrack(manifest,track);
   return available(manifest,playbackAsset(track));
  }
  List<JSONObject> assets(JSONObject track)throws Exception{
@@ -185,12 +222,11 @@ class Library {
    reader.read(asset);
   }
   return new JSONObject().put("paths",paths).put("track",track).put("rate",44100)
-   .put("gain",MusicContract.gain(track))
    .put("renderMs",PlaybackRules.total(track.optLong("play_ms",120000),track.optLong("fade_ms",0)));
  }
  record StreamInputs(List<byte[]> buffers,JSONObject descriptor) {}
  StreamInputs streamInputs(JSONObject manifest,JSONObject track,String decoder,StreamCache.Track lease)throws Exception{
-  if(decoder.equals("site")){
+  if(MusicContract.decoderNeedsInputs(decoder)){
    List<byte[]> buffers=new ArrayList<>();
    JSONObject descriptor=decoderInput(manifest,track,asset->buffers.add(bufferedAsset(manifest,asset,lease)));
    return new StreamInputs(buffers,descriptor);
@@ -207,7 +243,7 @@ class Library {
   String expected=asset.getString("sha256");
   if(size<=0||size>StreamCache.LIMIT||!expected.matches("[a-f0-9]{64}"))throw new IOException("Трек превышает лимит буфера ТВ или повреждён");
   String url=resolve(manifest.getString("_url"),asset.getString("url"));
-  HttpURLConnection connection=(HttpURLConnection)new URL(url).openConnection();
+  HttpURLConnection connection=NetworkPolicy.openHttp(new URL(url));
   connection.setConnectTimeout(12000);connection.setReadTimeout(15000);connection.setInstanceFollowRedirects(false);
   transfers.add(connection);
   try{
@@ -246,7 +282,7 @@ class Library {
   requireNetwork();long expected=a.getLong("bytes");if(expected<0||expected>256L*1024*1024)throw new IOException("Недопустимый размер");
   String url=resolve(m.getString("_url"),a.getString("url"));f.getParentFile().mkdirs();File part=new File(f+".part");
   long offset=part.isFile()?part.length():0;if(offset>expected){part.delete();offset=0;}
-  HttpURLConnection c=(HttpURLConnection)new URL(url).openConnection();c.setConnectTimeout(15000);c.setReadTimeout(30000);c.setInstanceFollowRedirects(false);transfers.add(c);
+  HttpURLConnection c=NetworkPolicy.openHttp(new URL(url));c.setConnectTimeout(15000);c.setReadTimeout(30000);c.setInstanceFollowRedirects(false);transfers.add(c);
   if(offset>0)c.setRequestProperty("Range","bytes="+offset+"-");
   try{int status=c.getResponseCode();
    if(status==200)offset=0;
@@ -364,12 +400,34 @@ class Library {
  File cover(JSONObject game)throws Exception{return picture(game,false,false);}
  File measurementFile(JSONObject t)throws Exception {return new File(root,"timings/v1-"+t.getJSONObject("asset").getString("sha256")+"-"+t.optInt("subsong")+".json");}
  JSONObject timing(JSONObject t)throws Exception {File f=measurementFile(t);return f.isFile()?new JSONObject(new String(Files.readAllBytes(f.toPath()),java.nio.charset.StandardCharsets.UTF_8)):null;}
- long knownDuration(JSONObject t){try{JSONObject measured=timing(t);if(measured!=null&&measured.optLong("ended_ms",-1)>=0)return measured.optLong("sound_ms",0);return t.optBoolean("duration_known")?t.optLong("play_ms",0):-1;}catch(Exception e){return -1;}}
- long displayDuration(JSONObject t){long known=knownDuration(t);if(known<0)return -1;try{JSONObject measured=timing(t);if(measured!=null&&measured.optLong("ended_ms",-1)>=0)return known;}catch(Exception ignored){}return PlaybackRules.total(known,t.optLong("fade_ms",0));}
+ private File decoderDurationFile(JSONObject track)throws Exception{
+  String sha=playbackAsset(track).getString("sha256");
+  if(!sha.matches("[0-9a-f]{64}"))throw new IOException("Некорректный отпечаток аудио");
+  JSONObject playback=track.optJSONObject("playback");
+  int preroll=track.optInt("native_preroll_vgm_samples",playback==null?0:playback.optInt("native_preroll_vgm_samples"));
+  return new File(root,"timings/native-v1-"+sha+"-"+track.optInt("subsong")+"-"+preroll+".json");
+ }
+ void recordDecoderDuration(JSONObject track,long duration){
+  if(streaming)return;
+  try{
+   File file=decoderDurationFile(track);
+   if(!file.isFile()){
+    atomic(file,new JSONObject().put("duration_ms",duration).toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+    revision.incrementAndGet();
+   }
+  }catch(Exception ignored){}
+ }
+ private long decodedDuration(JSONObject track){
+  if(streaming)return -1;
+  try{File file=decoderDurationFile(track);return file.isFile()?readObject(file).optLong("duration_ms",-1):-1;}
+  catch(Exception ignored){return -1;}
+ }
+ long knownDuration(JSONObject t){long decoded=decodedDuration(t);if(decoded>=0)return decoded;try{JSONObject measured=timing(t);if(measured!=null&&measured.optLong("ended_ms",-1)>=0)return measured.optLong("sound_ms",0);return t.optBoolean("duration_known")?t.optLong("play_ms",0):-1;}catch(Exception e){return -1;}}
+ long displayDuration(JSONObject t){long decoded=decodedDuration(t);if(decoded>=0)return decoded;String engine=MusicContract.decoder(t);if(engine.equals("vgm")||engine.equals("wav")||engine.equals("fallback"))return -1;long known=knownDuration(t);if(known<0)return -1;try{JSONObject measured=timing(t);if(measured!=null&&measured.optLong("ended_ms",-1)>=0)return known;}catch(Exception ignored){}return PlaybackRules.total(known,t.optLong("fade_ms",0));}
  static final Object MEASURE_LOCK=new Object();
  void measureTrack(JSONObject t)throws Exception {synchronized(MEASURE_LOCK){measureLocked(t);}}
  private void measureLocked(JSONObject t)throws Exception {
-  if(!MusicContract.decoder(t).equals("gme")||t.optBoolean("duration_known")||measurementFile(t).isFile()||!available(t.getJSONObject("asset")))return;
+  if(!t.optString("backend").equals("gme")||!MusicContract.decoder(t).equals("gme")||t.optBoolean("duration_known")||measurementFile(t).isFile()||!available(t.getJSONObject("asset")))return;
   long[] r=Gme.measure(assetFile(t.getJSONObject("asset")).toString(),t.optInt("subsong"),180000);
   JSONObject value=new JSONObject().put("sound_ms",r[0]).put("ended_ms",r[1]).put("scan_limit_ms",r[2]).put("method","gme-silence-rms16-22050-v1");atomic(measurementFile(t),value.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
  }
@@ -518,7 +576,15 @@ class Library {
  void cancelWork(){cancel=true;cancelTransfers();}
  void pausePending(){cancelWork();synchronized(REQUEST_LOCK){if(archive.hasDownload())preferences.edit().putBoolean("archive_paused",true).apply();Set<String> paused=new HashSet<>(preferences.getStringSet("paused_downloads",Collections.emptySet()));for(JSONObject game:pendingGames())paused.add(game.optString("id"));for(JSONObject game:savedGames())if(!offlineReady(game))paused.add(game.optString("id"));preferences.edit().putStringSet("paused_downloads",paused).apply();revision.incrementAndGet();}}
  List<JSONObject> repairCandidates(){List<JSONObject> result=new ArrayList<>();for(JSONObject game:savedGames())if(game.optInt("_music_contract")==1&&!paused(game)&&!offlineReady(game))result.add(game);return result;}
- boolean needsMaintenance(){return !pendingGames().isEmpty()||!repairCandidates().isEmpty();}
+ boolean needsMaintenance(){return archive.pendingUnpaused()||!pendingGames().isEmpty()||!repairCandidates().isEmpty();}
+ void requestArchive()throws IOException{
+  synchronized(REQUEST_LOCK){
+   checkCancelled();
+   if(!preferences.edit().putBoolean("archive_update_pending",true).putBoolean("archive_paused",false)
+      .putBoolean("follow_all_music",true).commit())throw new IOException("Не удалось сохранить очередь загрузки ZIP");
+   revision.incrementAndGet();
+  }
+ }
  void resumeRequests()throws InterruptedIOException{synchronized(REQUEST_LOCK){checkCancelled();preferences.edit().putStringSet("paused_downloads",Collections.emptySet()).putBoolean("archive_paused",false).apply();revision.incrementAndGet();}}
  void repairSaved(Progress progress)throws Exception{
   List<JSONObject> games=repairCandidates();if(games.isEmpty())return;List<String> metadata=prepareOffline(progress);JSONArray allSeries;try{allSeries=series(false);}catch(Exception e){allSeries=new JSONArray();}

@@ -14,7 +14,7 @@ Music, game trademarks, game and series posters, and other fetched site material
 
 ## Internet radio playback
 
-AndroidX Media3 1.8.1 (ExoPlayer and HLS) and the bundled AndroidX, Guava and Kotlin runtime libraries retain their Apache 2.0 licenses. Radio streams come directly from their stations.
+AndroidX Media3 1.8.1 (ExoPlayer, HLS and the OkHttp data source), Square OkHttp and Okio, and the bundled AndroidX, Guava and Kotlin runtime libraries retain their Apache 2.0 licenses. Radio streams come directly from their stations.
 
 
                                  Apache License
@@ -218,3 +218,23 @@ AndroidX Media3 1.8.1 (ExoPlayer and HLS) and the bundled AndroidX, Guava and Ko
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
    See the License for the specific language governing permissions and
    limitations under the License.
+
+КОСМИЧЕСКАЯ СОНИФИКАЦИЯ
+В APK входят спектральные профили и фрагмент аудификации измерений Voyager 1 PWS.
+Voyager 1 PWS: NASA/JPL-Caltech и Университет Айовы.
+https://space.physics.uiowa.edu/plasma-wave/voyager/v1pws_interstellar_epo.html
+https://creativecommons.org/licenses/by/4.0/
+Kepler KIC 12268220 (кривая блеска) и Voyager (молнии Юпитера): NASA Historical Sounds.
+https://www.nasa.gov/historical-sounds/
+Cassini RPWS (Сатурн, 26 апреля 2017): NASA и Университет Айовы, CC BY 3.0.
+https://space.physics.uiowa.edu/space-audio/cassini/rev271rpx/
+https://creativecommons.org/licenses/by/3.0/
+Адаптация: энергия сигнала, доминирующая полоса и спектральный центр преобразованы в ноты и параметры синтезатора.
+Фрагмент Voyager: 0,5–12,0 с звуковой дорожки научной анимации, PCM 16 кГц моно. При воспроизведении применяются плавные края и подмешивание к трекеру.
+«Орбиты»: эфемериды Луны NASA/JPL Horizons, солнечный ветер и измерения GOES NOAA SWPC.
+https://ssd-api.jpl.nasa.gov/doc/horizons.html
+https://www.swpc.noaa.gov/products/solar-wind
+https://www.swpc.noaa.gov/products/goes-x-ray-flux
+Встроенный срез получен 13 ноября 2026 г. UTC.
+«Москва»: звуковая обработка и управление движением по мотивам Sonic City (Lalya Gaye, Ramia Mazé, Lars Erik Holmquist).
+https://nime.org/proc/nime2003_gaye/
