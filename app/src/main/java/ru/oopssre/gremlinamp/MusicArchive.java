@@ -47,6 +47,8 @@ final class MusicArchive {
         Integrity() { super("Размер или SHA-256 ZIP не совпадает с квитанцией"); }
     }
 
+    static File validator(File zip) { return new File(zip.getPath() + ".etag"); }
+
     File active() {
         synchronized (ACTIVE_LOCK) {
             if (ACTIVE.containsKey(root)) return ACTIVE.get(root);
@@ -140,40 +142,57 @@ final class MusicArchive {
             File active = active();
             if (active != null && active.getName().equals(receipt.sha)) {
                 clean(receipt.sha);
+                discardTransfers(null);
                 library.preferences.edit().putBoolean("archive_update_pending", false).apply();
                 library.downloadSummary = "Офлайн-библиотека уже актуальна";
                 return;
             }
-            if (attempt == 0) {
-                if (!library.preferences.edit().putBoolean("archive_update_pending", true).commit())
-                    throw new IOException("Не удалось сохранить состояние загрузки ZIP");
-                library.checkCancelled();
-                if (active != null) progress.update("Удаляю прежнюю офлайн-библиотеку…");
-                clear();
-            }
+            if (!pending() && !library.preferences.edit().putBoolean("archive_update_pending", true).commit())
+                throw new IOException("Не удалось сохранить состояние загрузки ZIP");
             library.checkCancelled();
-            File zip = File.createTempFile("download-", ".zip", root);
+            File zip = new File(root, "download-" + receipt.sha + ".part");
+            discardTransfers(zip);
+            // Staging directories from an interrupted process are never published.
+            clean(active == null ? "" : active.getName());
+            if (zip.length() > receipt.bytes) discardTransfer(zip);
             try {
-                library.transferArchive(receipt, zip, progress);
+                if (zip.length() < receipt.bytes) library.transferArchive(receipt, zip, progress);
+                progress.update("Проверяю SHA-256 архива…");
                 if (zip.length() != receipt.bytes || !Library.hashFile(zip, library).equals(receipt.sha)) throw new Integrity();
                 progress.update("Распаковываю библиотеку…");
                 install(zip, receipt.sha);
                 library.preferences.edit().putBoolean("archive_update_pending", false).apply();
                 library.downloadSummary = "Офлайн-библиотека обновлена";
                 Library.revision.incrementAndGet();
+                discardTransfer(zip);
                 return;
             } catch (Integrity e) {
+                discardTransfer(zip);
                 if (attempt == 1) throw e;
                 progress.update("Архив изменился. Повторяю проверку квитанции…");
-            } finally {
-                Files.deleteIfExists(zip.toPath());
             }
         }
     }
 
-    boolean hasDownload() {
-        return active() != null || library.preferences.getBoolean("archive_update_pending", false);
+    private static void discardTransfer(File zip) throws IOException {
+        Files.deleteIfExists(zip.toPath());
+        Files.deleteIfExists(validator(zip).toPath());
     }
+
+    private void discardTransfers(File keep) throws IOException {
+        File[] files = root.listFiles(file -> file.isFile() && file.getName().startsWith("download-"));
+        if (files == null) return;
+        for (File file : files) {
+            if (keep == null || !file.equals(keep) && !file.equals(validator(keep)))
+                Files.deleteIfExists(file.toPath());
+        }
+    }
+
+    boolean pending() { return library.preferences.getBoolean("archive_update_pending", false); }
+
+    boolean pendingUnpaused() { return pending() && !library.preferences.getBoolean("archive_paused", false); }
+
+    boolean hasDownload() { return active() != null || pending(); }
 
     void clear() throws IOException {
         synchronized (ACTIVE_LOCK) {

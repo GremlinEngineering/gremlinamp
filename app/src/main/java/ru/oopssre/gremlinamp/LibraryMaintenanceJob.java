@@ -34,10 +34,24 @@ public class LibraryMaintenanceJob extends JobService {
     if(!current.networkAllowed()){retry=current.needsMaintenance();return;}
     if(!current.needsMaintenance())return;
     Library.Progress report=message->{if(current==library&&!current.cancel)status=message;};
+    String archiveError="";
+    if(current.archive.pendingUnpaused()){
+     try{
+      current.downloadArchive(report);
+      current.checkCancelled();
+      MusicSyncJob.result(current,current.downloadSummary,true);
+     }catch(Exception e){
+      current.checkCancelled();
+      archiveError="Загрузка ZIP отложена · "+e.getMessage();
+      report.update(archiveError);
+      MusicSyncJob.result(current,archiveError,false);
+     }
+    }
     current.repairSaved(report);
     java.util.List<org.json.JSONObject> pending=current.pendingGames();
     if(!pending.isEmpty())current.download(pending,report);
-    retry=current.needsMaintenance();report.update(retry?"Часть оформления пока недоступна · повторим автоматически":"Скачанная музыка готова к работе без сети");
+    retry=current.needsMaintenance();
+    report.update(!archiveError.isEmpty()?archiveError:retry?"Загрузки продолжатся автоматически":"Скачанная музыка готова к работе без сети");
    }catch(Exception e){retry=true;if(current==library&&!current.cancel)status="Загрузка продолжится автоматически: "+e.getMessage();}
    finally{
     if(locked)Library.DOWNLOAD_LOCK.unlock();

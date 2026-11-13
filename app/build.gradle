@@ -1,5 +1,9 @@
 plugins { id 'com.android.application' }
+
 android {
+ androidResources {
+  ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:<dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~:!<dir>site-engine:!<dir>decoder-host'
+ }
  namespace 'ru.oopssre.gremlinamp'
  compileSdk 35
  buildToolsVersion '35.0.0'
@@ -8,25 +12,34 @@ android {
   applicationId 'ru.oopssre.gremlinamp'
   minSdk 26
   targetSdk 35
-  versionCode 21
-  versionName '0.2.11'
+  versionCode 27
+  versionName '0.2.17'
   externalNativeBuild { cmake { cppFlags '-std=c++17'; arguments '-DGME_BUILD_EXAMPLES=OFF', '-DGME_BUILD_TESTING=OFF', '-DGME_BUILD_SHARED=OFF', '-DGME_BUILD_STATIC=ON', '-DGME_ZLIB=ON' } }
   ndk { abiFilters 'arm64-v8a', 'armeabi-v7a', 'x86_64' }
  }
  externalNativeBuild { cmake { path 'src/main/cpp/CMakeLists.txt'; version '3.22.1' } }
+ buildTypes.configureEach {
+  minifyEnabled true
+  proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+ }
  compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
 }
 
-
-tasks.named('preBuild').configure {
- doFirst {
-  if (!file('src/main/assets/site-engine/archive-sha256.txt').isFile()) {
-   throw new GradleException('Import music_player.zip with tools/import-site-engine.py before building.')
-  }
+def voyagerLocal = file('src/main/assets/space/voyager-plasma.pcm')
+def voyagerAssets = layout.buildDirectory.dir('generated/voyager-assets')
+if (!voyagerLocal.isFile()) {
+ def prepareVoyagerAudio = tasks.register('prepareVoyagerAudio', Exec) {
+  def destination = voyagerAssets.get().file('space/voyager-plasma.pcm').asFile
+  inputs.file(rootProject.file('tools/prepare-voyager-audio.sh'))
+  outputs.file(destination)
+  commandLine 'bash', rootProject.file('tools/prepare-voyager-audio.sh'), destination
  }
+ android.sourceSets.main.assets.srcDir(voyagerAssets)
+ tasks.named('preBuild').configure { dependsOn prepareVoyagerAudio }
 }
 
 dependencies {
  implementation "androidx.media3:media3-exoplayer:1.8.1"
  implementation "androidx.media3:media3-exoplayer-hls:1.8.1"
+ implementation "androidx.media3:media3-datasource-okhttp:1.8.1"
 }

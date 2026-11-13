@@ -25,10 +25,24 @@ final class SimilarityStore {
   }
  }
  static String status(Library l){return l.preferences.getString("similarity_status","Индекс похожей музыки ещё не загружен");}
- static void refresh(Library l){if(!REFRESHING.compareAndSet(false,true))return;synchronized(REFRESH_LOCK){revision.incrementAndGet();File temp=null;SQLiteDatabase db=null;HttpURLConnection connection=null;
-  try{l.requireNetwork();connection=(HttpURLConnection)new java.net.URL(URL).openConnection();connection.setConnectTimeout(15000);connection.setReadTimeout(30000);connection.setInstanceFollowRedirects(false);
+ static void refresh(Library l){
+  long current=revision.get();
+  if(REFRESHING.get())return;
+  synchronized(REFRESH_LOCK){if(current==revision.get())refreshLocked(l);}
+ }
+ static void ensureReadable(Library l)throws IOException{
+  if(readable(l))return;
+  synchronized(REFRESH_LOCK){
+   l.checkCancelled();
+   if(!readable(l))refreshLocked(l);
+   if(!readable(l))throw new IOException(status(l));
+  }
+ }
+ private static void refreshLocked(Library l){REFRESHING.set(true);revision.incrementAndGet();File temp=null;SQLiteDatabase db=null;HttpURLConnection connection=null;
+  try{l.requireNetwork();connection=NetworkPolicy.openHttp(new java.net.URL(URL));connection.setConnectTimeout(15000);connection.setReadTimeout(30000);connection.setInstanceFollowRedirects(false);
    String etag=l.preferences.getString("similarity_etag","");if(!etag.isEmpty()&&readable(l))connection.setRequestProperty("If-None-Match",etag);
    int code=connection.getResponseCode();l.checkCancelled();if(code==304){if(!readable(l))throw new IOException("Нет сохранённого индекса для ответа HTTP 304");l.preferences.edit().putString("similarity_status","Индекс похожей музыки актуален").apply();return;}if(code==404)throw new IOException("Индекс ещё не опубликован на сайте");if(code!=200)throw new IOException("Индекс: HTTP "+code);
+   Files.createDirectories(l.root.toPath());
    temp=File.createTempFile("similarity-",".db",l.root);db=SQLiteDatabase.openOrCreateDatabase(temp,null);db.execSQL("CREATE TABLE tracks (key TEXT PRIMARY KEY, data TEXT NOT NULL)");db.beginTransaction();int schema=-1,count=0;boolean found=false;
    try(JsonReader reader=new JsonReader(new InputStreamReader(new LimitedInput(connection.getInputStream(),l),java.nio.charset.StandardCharsets.UTF_8))){reader.beginObject();while(reader.hasNext()){String name=reader.nextName();if(name.equals("schema_version"))schema=reader.nextInt();else if(name.equals("tracks")){found=true;reader.beginObject();while(reader.hasNext()){String key=reader.nextName();if(!SimilarityRules.validKey(key))throw new IOException("Некорректный ключ композиции");Object value=readValue(reader,0,new int[]{0});if(!(value instanceof JSONObject))throw new IOException("Некорректная запись индекса");JSONObject row=(JSONObject)value;if(row.optJSONArray("refs")==null||row.optJSONObject("neighbors")==null)throw new IOException("Неполная запись индекса");db.execSQL("INSERT INTO tracks(key,data) VALUES (?,?)",new Object[]{key.toLowerCase(Locale.ROOT),row.toString()});if(++count>250000)throw new IOException("Слишком много композиций в индексе");}reader.endObject();}else reader.skipValue();}reader.endObject();if(reader.peek()!=JsonToken.END_DOCUMENT)throw new IOException("Лишние данные индекса");}
    if(schema!=1||!found)throw new IOException("Неподдерживаемый формат индекса");db.setTransactionSuccessful();db.endTransaction();db.close();db=null;
@@ -36,7 +50,7 @@ final class SimilarityStore {
    l.preferences.edit().putString("similarity_etag",Objects.toString(connection.getHeaderField("ETag"),"")).putString("similarity_status","Индекс похожей музыки: "+count+" композиций").putLong("similarity_updated",System.currentTimeMillis()).apply();
   }catch(Exception e){l.preferences.edit().putString("similarity_status",String.valueOf(e.getMessage())+(readable(l)?" · используется сохранённый индекс":"")).apply();}
   finally{if(db!=null)db.close();if(connection!=null)connection.disconnect();if(temp!=null){temp.delete();new File(temp+"-journal").delete();}REFRESHING.set(false);revision.incrementAndGet();}
- }}
+ }
  static Object readValue(JsonReader r,int depth,int[] nodes)throws Exception{if(depth>10||++nodes[0]>20000)throw new IOException("Слишком сложная запись индекса");switch(r.peek()){
   case BEGIN_OBJECT:{JSONObject o=new JSONObject();r.beginObject();while(r.hasNext()){String key=r.nextName();o.put(key,readValue(r,depth+1,nodes));}r.endObject();return o;}
   case BEGIN_ARRAY:{JSONArray a=new JSONArray();r.beginArray();while(r.hasNext())a.put(readValue(r,depth+1,nodes));r.endArray();return a;}

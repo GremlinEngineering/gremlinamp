@@ -1,10 +1,14 @@
 # Decoder sources for GremlinAmp Android
 
-GremlinAmp 0.2.11 for phones and GremlinAmp TV 0.1.2 ship the same 217 files under `assets/site-engine/`, including 37 WebAssembly modules. The two APKs and the output of the repository's importer matched byte for byte at every path in that directory. Both APKs also ship the same decoder host. Only the phone APK includes the native Game Music Emu JNI library, built from the [C++ sources](../app/src/main/cpp/).
+GremlinAmp 0.2.11 for phones and GremlinAmp TV 0.1.2 shipped the same 217 files under `assets/site-engine/`, including 37 WebAssembly modules. The two APKs and the output of the repository's importer matched byte for byte at every path in that directory. Both APKs also ship the same decoder host. Only the phone APK includes the native Game Music Emu JNI library, built from the [C++ sources](../app/src/main/cpp/).
 
 [apk-inventory.json](apk-inventory.json) records the SHA-256 values of the checked APKs, input ZIP, shared assets and source archives. Its `wasm_sources` section maps each module to its source package or build recipe. [archives](archives/) contains the corresponding source packages. [web](web/) contains the JavaScript workers, format routing and notices from the input bundle.
 
-## Build details
+## Android NDK build
+
+The [Android CMake project](../app/src/main/cpp/CMakeLists.txt) compiles the pinned C and C++ sources in these archives into Android libraries. It uses the original frontends for chip and machine playback and reads the published music containers through the Android playback service. The historical web sources remain here as provenance for container layouts and build options.
+
+## Historical web build details
 
 - **Game Music Emu (WebAssembly)** uses the [build recipe](web/build-web-decoder.sh) with the repository's Game Music Emu tree and its GremlinAmp YM2413 adapter. The tree is unchanged from `7d0e0dd`. The inherited WebAssembly provenance file in the site archive lists hashes for an earlier upstream build. See the [release payload hashes](web/gme-reference.json) and the inventory for the checked binaries.
 - **FCEUmm** was recovered from its separate source package. **WonderSwan headroom** uses the original Beetle WonderSwan source plus the [mixer patch](ws-headroom/headroom.patch). Its [recipe](ws-headroom/build_wasm.py) applies the patch itself and uses the upstream ZIP and host code beside it. Pass `--emsdk` and `--output` to the recipe. Release rebuild records for [FCEUmm](web/nf-rebuild.json) and [WonderSwan](ws-headroom/REBUILD.json) match the shipped binaries.

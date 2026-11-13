@@ -1,20 +1,31 @@
 plugins { id 'com.android.application' }
 
 android {
+ androidResources {
+  ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:<dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~:!<dir>site-engine:!<dir>decoder-host'
+ }
     namespace 'ru.oopssre.gremlinamp'
     compileSdk 35
     buildToolsVersion '35.0.0'
+    ndkVersion '27.0.12077973'
     defaultConfig {
         applicationId 'ru.oopssre.gremlinamp.tv'
         minSdk 26
         targetSdk 35
-        versionCode 4
-        versionName '0.1.3'
+        versionCode 18
+        versionName '0.1.17'
+        externalNativeBuild { cmake { cppFlags '-std=c++17'; arguments '-DGME_BUILD_EXAMPLES=OFF', '-DGME_BUILD_TESTING=OFF', '-DGME_BUILD_SHARED=OFF', '-DGME_BUILD_STATIC=ON', '-DGME_ZLIB=ON' } }
+        ndk { abiFilters 'arm64-v8a', 'armeabi-v7a', 'x86_64' }
     }
+    externalNativeBuild { cmake { path '../app/src/main/cpp/CMakeLists.txt'; version '3.22.1' } }
     sourceSets.main {
         java.srcDirs += ['../app/src/main/java']
         res.srcDirs += ['../app/src/main/res']
         assets.srcDirs += ['../app/src/main/assets']
+    }
+    buildTypes.configureEach {
+     minifyEnabled true
+     proguardFiles getDefaultProguardFile('proguard-android.txt'), '../app/proguard-rules.pro'
     }
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
@@ -26,12 +37,5 @@ dependencies {
     implementation "androidx.core:core:1.8.0"
     implementation "androidx.media3:media3-exoplayer:1.8.1"
     implementation "androidx.media3:media3-exoplayer-hls:1.8.1"
-}
-
-tasks.named('preBuild').configure {
-    doFirst {
-        if (!rootProject.file('app/src/main/assets/site-engine/archive-sha256.txt').isFile()) {
-            throw new GradleException('Import music_player.zip with tools/import-site-engine.py before building.')
-        }
-    }
+    implementation "androidx.media3:media3-datasource-okhttp:1.8.1"
 }

@@ -23,7 +23,7 @@ public class DownloadService extends Service {
    try{wake.acquire(6*60*60*1000L);if(!sync&&!archive){JSONArray requested=new JSONArray(payload);List<JSONObject> pending=new ArrayList<>();for(int k=0;k<requested.length();k++)pending.add(requested.getJSONObject(k));library.queueDownloads(pending);}progress="Ожидание текущей загрузки…";Library.DOWNLOAD_LOCK.lockInterruptibly();locked=true;if(Thread.currentThread().isInterrupted())throw new java.io.InterruptedIOException();
     Library.Progress report=s->{progress=s;((NotificationManager)getSystemService(NOTIFICATION_SERVICE)).notify(2,notification());};
     if(archive){
-     library.checkCancelled();library.preferences.edit().putBoolean("follow_all_music",true).apply();
+     library.requestArchive();
      library.downloadArchive(report);
      library.checkCancelled();
      MusicSyncJob.result(library,library.downloadSummary,true);

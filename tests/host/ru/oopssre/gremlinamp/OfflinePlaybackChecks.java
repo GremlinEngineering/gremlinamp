@@ -74,6 +74,29 @@ public final class OfflinePlaybackChecks {
   try(Counter p=new Counter(l)){
    p.queue=List.of(queue.get(0));p.repeat=true;l.preferences.edit().putString("after_album","series").apply();p.advance(true);check(p.started==0,"natural finish repeats one track");p.next();check(p.continuations==0&&p.state==ENDED,"manual skip cannot enable continuation while repeating");
   }
+  JSONObject secondGame=game(2), thirdGame=game(3);
+  JSONArray games=new JSONArray().put(game).put(secondGame).put(thirdGame);
+  JSONArray series=new JSONArray()
+      .put(new JSONObject().put("id","one").put("title","First series")
+          .put("game_ids",new JSONArray().put(game.getString("id")).put(secondGame.getString("id"))))
+      .put(new JSONObject().put("id","two").put("title","Other series")
+          .put("game_ids",new JSONArray().put(secondGame.getString("id")).put(thirdGame.getString("id"))));
+  Library tv=new Library(context,true){
+   JSONObject catalog(boolean refresh)throws JSONException{return new JSONObject().put("games",games).put("series",series);}
+   JSONArray series(boolean refresh){throw new AssertionError("continuation must use the same catalog snapshot");}
+   JSONObject manifest(JSONObject candidate,boolean refresh){return manifest;}
+  };
+  try(Probe p=new Probe(tv)){
+   tv.preferences.edit().putString("after_album","stop").apply();
+   p.queue=List.of(queue.get(0));p.state=PLAYING;p.completed(p.generation);
+   check(p.state==ENDED&&!p.canNext(),"TV stops at the last track in stop mode");
+   tv.preferences.edit().putString("after_album","series").apply();
+   check(p.canNext(),"TV can continue an ended queue after the mode changes");
+   p.next();await(()->p.queue.size()==2&&p.state==PLAYING);
+   check(p.currentEntry().game==secondGame&&p.playingSeries().equals("one"),"TV infers and retains the series");
+   p.completed(p.generation);await(()->p.state==ENDED);
+   check(p.queue.size()==2&&p.error.contains("серии"),"TV does not spill into an overlapping series");
+  }
   try(Probe p=new Probe(l)){
    l.preferences.edit().putString("after_album","stop").apply();p.queue=List.of(queue.get(0));p.media=new android.media.MediaPlayer();android.media.MediaPlayer audio=p.media;audio.start();p.mediaReady=true;p.state=PLAYING;p.next();check(p.state==ENDED&&!audio.isPlaying()&&p.media==null,"Next on last track releases actual media transport");
   }

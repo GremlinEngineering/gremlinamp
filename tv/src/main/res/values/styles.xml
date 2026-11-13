@@ -1,8 +1,20 @@
 <resources>
     <style name="GremlinAmpTvTheme" parent="android:style/Theme.Material.NoActionBar">
-        <item name="android:colorAccent">#FBBF55</item>
+        <item name="android:colorAccent">#8EE8B9</item>
+        <item name="android:fontFamily">monospace</item>
+        <item name="android:windowBackground">#0B1411</item>
+        <item name="android:colorBackground">#0B1411</item>
+        <item name="android:colorBackgroundFloating">#12251C</item>
+        <item name="android:colorControlHighlight">#558EE8B9</item>
+        <item name="android:windowFullscreen">true</item>
+    </style>
+    <style name="GremlinAmpTvLightTheme" parent="android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:colorAccent">#8C2758</item>
         <item name="android:fontFamily">sans</item>
-        <item name="android:windowBackground">#141126</item>
+        <item name="android:windowBackground">#FBF8EC</item>
+        <item name="android:colorBackground">#FBF8EC</item>
+        <item name="android:colorBackgroundFloating">#FFFDF6</item>
+        <item name="android:colorControlHighlight">#558C2758</item>
         <item name="android:windowFullscreen">true</item>
     </style>
 </resources>

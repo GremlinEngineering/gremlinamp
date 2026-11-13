@@ -31,7 +31,7 @@ final class TvUpdates {
     public static final class Provider extends FileProvider {}
 
     enum Stage { IDLE, CHECKING, DOWNLOADING, CANCELLING }
-    record State(Stage stage, TvRelease offer, boolean ready, String detail) {}
+    record State(Stage stage, TvRelease offer, boolean ready, String detail, int percent) {}
     private record Manifest(String body, String etag) {}
     private static final class Download {
         final TvRelease release;
@@ -61,6 +61,7 @@ final class TvUpdates {
     private Consumer<State> observer;
     private boolean ready, installerActive;
     private String detail = "Загрузка сведений об обновлении…";
+    private int percent = -1;
 
     private TvUpdates(Context context) {
         this.context = context;
@@ -81,7 +82,7 @@ final class TvUpdates {
 
     long installedBuild() { return installedBuild; }
     String installedVersion() { return installedVersion; }
-    State state() { return new State(stage, offer, ready, detail); }
+    State state() { return new State(stage, offer, ready, detail, percent); }
 
     void observe(Consumer<State> observer) {
         this.observer = observer;
@@ -222,6 +223,7 @@ final class TvUpdates {
     private void idle(String message) {
         stage = Stage.IDLE;
         detail = message;
+        percent = -1;
         notifyObserver();
         schedule();
     }
@@ -231,7 +233,7 @@ final class TvUpdates {
     }
 
     private static HttpURLConnection connect(String url) throws IOException {
-        HttpURLConnection connection = (HttpURLConnection) new URL(url).openConnection();
+        HttpURLConnection connection = NetworkPolicy.openHttp(new URL(url));
         connection.setInstanceFollowRedirects(false);
         connection.setConnectTimeout(12_000);
         connection.setReadTimeout(12_000);
@@ -283,11 +285,13 @@ final class TvUpdates {
                     long now = SystemClock.elapsedRealtime();
                     if (now - lastUpdate >= 300) {
                         lastUpdate = now;
-                        String progress = total > 0 ? "Скачиваем обновление · " + (100 * received / total) + "%"
+                        int progress = total > 0 ? (int) Math.min(100, 100.0 * received / total) : -1;
+                        String statusText = total > 0 ? "Скачиваем обновление"
                                 : String.format(Locale.ROOT, "Скачиваем обновление · %.1f МБ", received / 1_000_000d);
                         main.post(() -> {
                             if (download == job && stage == Stage.DOWNLOADING) {
-                                detail = progress;
+                                detail = statusText;
+                                percent = progress;
                                 notifyObserver();
                             }
                         });

@@ -7,6 +7,10 @@ import org.json.JSONObject;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
+import java.io.ByteArrayInputStream;
+import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
@@ -60,7 +64,7 @@ final class MusicApiChecks {
         JSONObject remoteIndex;
         final Deque<byte[]> receipts = new ArrayDeque<>(), downloads = new ArrayDeque<>();
         int queries;
-        File removedBeforeTransfer;
+        File retainedDuringTransfer;
         Transport(File folder) { super(new Context(folder)); }
         @Override JSONObject onlineJson(String url) throws Exception {
             if (url.equals(MusicContract.INDEX) && remoteIndex != null) return remoteIndex;
@@ -73,12 +77,102 @@ final class MusicApiChecks {
                     .put("bytes", bytes.length).put("sha256", Library.hash(bytes))));
         }
         @Override void transferArchive(MusicArchive.Receipt receipt, File output, Progress progress) throws Exception {
-            if (removedBeforeTransfer != null) {
-                check(!removedBeforeTransfer.exists() && archive.active() == null, "old archive removed before ZIP transfer");
-                removedBeforeTransfer = null;
+            if (retainedDuringTransfer != null) {
+                check(retainedDuringTransfer.isDirectory() && retainedDuringTransfer.equals(archive.active()),
+                        "old archive remains active during ZIP transfer");
+                retainedDuringTransfer = null;
             }
             Files.write(output.toPath(), downloads.remove());
         }
+    }
+
+    private static final class Response extends HttpURLConnection {
+        final byte[] body;
+        final int status;
+        final long declared;
+        final Map<String,String> headers;
+
+        Response(byte[] body, int status, long declared, Map<String,String> headers) throws IOException {
+            super(new URL(Library.BASE+"music/library.zip"));
+            this.body = body;
+            this.status = status;
+            this.declared = declared;
+            this.headers = headers;
+        }
+
+        @Override public int getResponseCode() { return status; }
+        @Override public long getContentLengthLong() { return declared; }
+        @Override public String getHeaderField(String name) { return headers.get(name); }
+        @Override public InputStream getInputStream() { return new ByteArrayInputStream(body); }
+        @Override public void connect() {}
+        @Override public void disconnect() {}
+        @Override public boolean usingProxy() { return false; }
+    }
+
+    private static final class RangeTransport extends Library {
+        byte[] contents;
+        Response response;
+        RangeTransport(Context context, byte[] contents) {
+            super(context);
+            this.contents = contents;
+        }
+        @Override MusicArchive.Receipt archiveReceipt() throws Exception {
+            return new MusicArchive.Receipt(new JSONObject().put("archive", new JSONObject()
+                    .put("url", "/music/library.zip").put("bytes", contents.length)
+                    .put("sha256", Library.hash(contents))));
+        }
+        @Override HttpURLConnection openArchiveConnection(MusicArchive.Receipt receipt) { return response; }
+        @Override void requireNetwork() {}
+    }
+
+    private static void checkResume(File root, byte[] old, byte[] updated) throws Exception {
+        Context context = new Context(root);
+        RangeTransport initial = new RangeTransport(context, old);
+        initial.response = new Response(old, 200, old.length, Map.of("ETag", "\"old\""));
+        initial.downloadArchive(s -> {});
+        File installed = initial.archive.active();
+
+        int cut = updated.length / 2;
+        initial.contents = updated;
+        initial.response = new Response(java.util.Arrays.copyOf(updated, cut), 200, updated.length, Map.of("ETag", "\"new\""));
+        try {
+            initial.downloadArchive(s -> {});
+            throw new AssertionError("truncated response must remain pending");
+        } catch (IOException expected) {
+            check(initial.archive.pendingUnpaused(), "an interrupted ZIP is eligible for background retry");
+            check(installed.equals(initial.archive.active()) && installed.isDirectory(), "old ZIP survives interruption");
+        }
+        initial.pausePending();
+        check(initial.archive.pending() && !initial.archive.pendingUnpaused(), "explicit pause keeps ZIP retry data");
+
+        RangeTransport restarted = new RangeTransport(context, updated);
+        restarted.requestArchive();
+        restarted.response = new Response(java.util.Arrays.copyOfRange(updated, cut, updated.length), 206,
+                updated.length - cut, Map.of("Content-Range", "bytes "+cut+"-"+(updated.length-1)+"/"+updated.length));
+        restarted.downloadArchive(s -> {});
+        check(("bytes="+cut+"-").equals(restarted.response.getRequestProperty("Range")), "retry requests the saved byte offset");
+        check("\"new\"".equals(restarted.response.getRequestProperty("If-Range")), "retry carries the saved validator");
+        check(restarted.archive.active().getName().equals(Library.hash(updated)) && !installed.exists()
+                && !restarted.archive.pending(), "verified replacement is activated, then old ZIP is removed");
+
+        restarted.contents = old;
+        restarted.response = new Response(java.util.Arrays.copyOf(old, cut), 200, old.length, Map.of("ETag", "\"old\""));
+        try { restarted.downloadArchive(s -> {}); }
+        catch (IOException expected) { check(restarted.archive.pending(), "old version remains pending after a second interruption"); }
+        restarted.response = new Response(old, 200, old.length, Map.of("ETag", "\"old\""));
+        restarted.downloadArchive(s -> {});
+        check(restarted.archive.active().getName().equals(Library.hash(old)), "200 on resume replaces the partial prefix");
+
+        restarted.contents = updated;
+        restarted.response = new Response(java.util.Arrays.copyOf(updated, cut), 200, updated.length, Map.of("ETag", "\"new\""));
+        try { restarted.downloadArchive(s -> {}); }
+        catch (IOException expected) { check(restarted.archive.pending(), "new version remains pending after interruption"); }
+        byte[] newer = archive(Map.of("game-index.json", json(ContractFixtures.index()), "GAMES.tsv", new byte[]{9}));
+        restarted.contents = newer;
+        restarted.response = new Response(newer, 200, newer.length, Map.of("ETag", "\"newer\""));
+        restarted.downloadArchive(s -> {});
+        check(restarted.response.getRequestProperty("Range") == null, "changed SHA starts a fresh ZIP on the same URL");
+        check(restarted.archive.active().getName().equals(Library.hash(newer)), "new ZIP verified and activated");
     }
 
     public static void main(String[] args) throws Exception {
@@ -127,36 +221,41 @@ final class MusicApiChecks {
             List<File> input = new ArrayList<>();
             JSONObject descriptor = library.decoderInput(local,track,input);
             check(descriptor.getJSONArray("paths").getString(1).equals("sound/Library.gsflib")
-                    && Files.readAllBytes(input.get(1).toPath())[0] == 4,"worker receives dependencies under virtual names");
+                    && Files.readAllBytes(input.get(1).toPath())[0] == 4,"decoder receives dependencies under virtual names");
             check(MusicContract.archivePath(Library.resolve(local.getString("_url"), primary.getString("url"))).equals(entry),
                     "offline URI decodes the name and ignores v");
             check(MusicContract.trackIndex(local.getJSONArray("tracks"),"chosen") == 0,"stable selected track ID");
-            check(MusicContract.decoder(track).equals("site"),"MiniGSF routes to the supplied decoder");
-            check(MusicContract.decoder(new JSONObject().put("backend","native").put("asset",new JSONObject().put("format","tmc"))).equals("site"),
-                    "custom board format routes to supplied decoder");
+            check(MusicContract.decoder(track).equals("gsf"),"MiniGSF routes to the native decoder");
+            check(MusicContract.decoder(new JSONObject().put("backend","native").put("asset",new JSONObject().put("format","tmc"))).equals("vgm"),
+                    "TMC routes to native libvgm");
+
+            JSONObject registers = asset("snes-registers","theme.snes-registers","theme.snes-registers",chip);
+            check(library.assetFile(registers).getName().endsWith(".snes-registers"),
+                    "SNES register dumps use the offline asset cache");
 
             library.receipts.add(old);
             library.downloadArchive(s -> {});
             check(original.equals(library.archive.active()), "unchanged receipt leaves the current copy in place");
-            library.removedBeforeTransfer = original;
+            library.retainedDuringTransfer = original;
             byte[] invalid = archive(Map.of("../escape",new byte[]{0},"game-index.json",json(ContractFixtures.index(one))));
             library.receipts.add(invalid);library.downloads.add(invalid);
             rejected = false;
             try { library.downloadArchive(s -> {}); } catch (IOException e) { rejected = true; }
-            check(rejected && library.archive.active() == null && library.archive.hasDownload(),
-                    "unsafe replacement leaves an empty offline library and a retryable update");
+            check(rejected && original.equals(library.archive.active()) && library.archive.pending(),
+                    "unsafe replacement preserves the offline library and a retryable update");
 
             byte[] second = archive(Map.of("game-index.json",json(ContractFixtures.index(one)),
                     "package-alpha/playlist-11.json",json(manifest),entry,chip,
                     "package-alpha/sound/Library.gsflib",libraryBytes,"GAMES.tsv",new byte[]{7}));
             int before = library.queries;
-            library.downloads.add(second);
+            library.downloads.add(new byte[]{7});
             byte[] unavailable = archive(Map.of("unpublished",new byte[]{7}));
             library.receipts.add(unavailable); library.receipts.add(second); library.downloads.add(second);
             library.downloadArchive(s -> {});
             check(library.queries == before + 2 && library.archive.active().getName().equals(Library.hash(second)),
                     "archive mismatch re-fetches the receipt and succeeds");
             check(!original.exists() && input.get(0).isFile(),"individual decoder cache survives ZIP replacement");
+            checkResume(new File(root,"range"),old,second);
 
             byte[] wav = ByteBuffer.allocate(48).order(ByteOrder.LITTLE_ENDIAN)
                     .put("RIFF".getBytes()).putInt(40).put("WAVEfmt ".getBytes()).putInt(16)

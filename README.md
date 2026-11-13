@@ -70,7 +70,8 @@ Game files may contain multiple compositions. Each composition appears as a sepa
 
 ## Build from source
 
-Requirements: Java 17, Gradle 8.13, Android SDK Platform 35, Build Tools 35.0.0, NDK 27.0.12077973, CMake 3.22.1 and `keytool`.
+Requirements: Java 17, Gradle 8.13, Android SDK Platform 35, Build Tools 35.0.0, NDK 27.0.12077973, CMake 3.22.1, Python 3.8 or later, Make, patch and `keytool`.
+The phone build also uses curl and FFmpeg on a clean checkout to prepare the credited Voyager plasma excerpt.
 
 ```bash
 export ANDROID_SDK_ROOT=/path/to/android-sdk
@@ -78,15 +79,9 @@ export GREMLINAMP_STOREPASS=android
 bash tools/build-sdk.sh
 ```
 
-Output: `build/GremlinAmp-0.2.8.apk`. Unless another key is supplied, the script creates a local development key at `build/development.keystore`. Never commit signing keys.
+Output: `build/GremlinAmp-0.2.17.apk`. Unless another key is supplied, the script creates a local development key at `build/development.keystore`. Never commit signing keys.
 
-Import the site decoder bundle before building.
-
-```sh
-python3 tools/import-site-engine.py /path/to/music_player.zip
-```
-
-The Android package includes the supplied site's WebAssembly modules, including libvgm 0.9 and GME Plus 0.10. Android System WebView 80 or later runs the local workers, and the Android playback service handles PCM output and the queue.
+The phone and TV builds compile the C and C++ decoder sources in [decoder-sources](decoder-sources/README.md) with the Android NDK. The playback service opens the libraries through JNI and streams PCM through Android AudioTrack.
 
 For repeatable update signing, set `GREMLINAMP_KEYSTORE` to your private keystore and `GREMLINAMP_STOREPASS` to its password. The script uses the alias `gremlinamp`.
 
@@ -127,7 +122,7 @@ The main screen keeps playback, library sections, search and one filter. Whole-l
 
 ### Music API v1
 
-Game and series data come from `/music/game-index.json`. Full-library downloads use `/music/library.json`. When the receipt lists a new ZIP, the app removes the old extracted library before downloading it, verifies the size and SHA-256, then extracts and activates the new library. Retry the download if the update fails. The library menu has a separate action to clear the full offline library, individually downloaded games, their covers and pending downloads, including audio cached by older clients.
+Game and series data come from `/music/game-index.json`. The full-library download reads the ZIP receipt at `/music/library.json`. After an interruption, the app resumes the partial ZIP if its receipt still has the same SHA-256. A new receipt hash starts a fresh download from the same URL. The previous offline library remains available until the replacement ZIP passes the size and SHA-256 checks, extracts and passes catalog validation. The library menu can clear the full offline library, individual games, covers and pending downloads.
 
 ## Radio and queues
 
