@@ -19,7 +19,9 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: 8.13
-      - uses: android-actions/setup-android@v3
+      - uses: android-actions/setup-android@v4
+        with:
+          packages: ''
       - name: Install SDK dependencies
         run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0' 'ndk;27.0.12077973' 'cmake;3.22.1'
       - name: Install audio preparation tools
@@ -38,6 +40,7 @@ jobs:
       - name: Build development APK
         env:
           GREMLINAMP_STOREPASS: android
+          GRADLE_OPTS: '-Dorg.gradle.jvmargs=-Xmx2048m'
         run: bash tools/build-sdk.sh
       - uses: actions/upload-artifact@v4
         with:
