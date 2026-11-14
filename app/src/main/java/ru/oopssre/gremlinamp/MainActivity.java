@@ -25,24 +25,33 @@ public class MainActivity extends Activity {
  void weighted(LinearLayout row,View v){LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,dp(48),1);p.setMargins(dp(2),dp(2),dp(2),dp(2));row.addView(v,p);}
  void message(String s){runOnUiThread(()->{if(!isFinishing())label(status,s);});}
  public void onCreate(Bundle state){super.onCreate(state);setVolumeControlStream(android.media.AudioManager.STREAM_MUSIC);library=new Library(this);seenSyncSuccess=library.preferences.getLong("sync_success",0);platformFilter=library.preferences.getString("platform_filter","");yearFilter=library.preferences.getString("year_filter","");seriesFilter=library.preferences.getString("search_series","");originFilter=HandheldTrackSearch.Origin.saved(library.preferences.getString("search_origin",""));ui();load();MusicSyncJob.schedule(this);LibraryMaintenanceJob.schedule(this);if(Build.VERSION.SDK_INT>=33&&checkSelfPermission("android.permission.POST_NOTIFICATIONS")!=0)requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"},1);handler.post(tick);AppUpdates.schedule(this,false);if(getIntent().getBooleanExtra("app_update",false))handler.post(this::appUpdateSettings);}
- private enum Surface { CATALOG, PLAYER, SETTINGS }
- private Surface visibleSurface=Surface.CATALOG,settingsReturn=Surface.CATALOG;
- private LinearLayout catalog,miniPlayer,queueRows,albumSeek;
- private ScrollView catalogScroll,playerScroll,settingsScroll;
- private TextView brandTitle,miniTitle,miniDetail,playerDetail,settingsProgress,orbitInfo;
+ private enum Surface { CATALOG, PLAYER, SETTINGS, RADIO, TRACKER, TRACKER_SETTINGS }
+ private Surface visibleSurface=Surface.CATALOG;
+ private final Deque<Surface> surfaceBack=new ArrayDeque<>();
+ private LinearLayout catalog,miniPlayer,queueRows,albumSeek,playerSeek,transportControls,playerActions;
+ private LinearLayout trackerModes,trackerSettings,radioRows;
+ private ScrollView catalogScroll,playerScroll,settingsScroll,radioScroll,trackerScroll,trackerSettingsScroll;
+ private TextView brandTitle,miniTitle,miniDetail,playerDetail,settingsProgress,generatorInfo;
  private Button backButton,settingsButton,menuButton,miniToggle,queueToggle,rewindAlbum,forwardAlbum,rewindPlayer,forwardPlayer;
  private HandheldSpectrum spectrum;
- private Button generatorOptions,voyagerOptions;
- private boolean cityMic;
+ private Button generatorOptions,generatorSettings,stationOptions,sleepButton;
+ private LinearLayout arrangementControls,arrangementOptions;
+ private Button originalAudio,arrangedAudio,arrangementStyle,arrangementLength;
+ private CheckBox arrangementWalk;
+ private final EnumMap<SpaceTracker.Mode,TextView> trackerLabels=new EnumMap<>(SpaceTracker.Mode.class);
+ private final Map<RadioStations.Station,TextView> radioLabels=new LinkedHashMap<>();
+ private SpaceTracker.Mode trackerSettingsMode;
  private CheckBox cityMicControl;
  private CityInput cityInput;
  private PlaybackService streetPlayer;
  private static final int CITY_MIC_PERMISSION=21;
+ private static final String CITY_MIC=TrackerPreferences.key(SpaceTracker.Mode.CITY,"mic");
 
  private boolean queueExpanded,foreground;
  private String highlightedTrack="";
  private List<PlaybackService.Entry> shownQueue=Collections.emptyList();
  private int shownQueuePosition=-1;
+ private long shownTimingRevision=-1;
  private static final long SEEK_STEP_MS=10_000;
 
  void ui(){
@@ -66,6 +75,8 @@ public class MainActivity extends Activity {
   });
   buildHeader();
   buildCatalog();
+  buildRadio();
+  buildTracker();
   buildPlayer();
   buildSettings();
   buildMiniPlayer();
@@ -104,15 +115,16 @@ public class MainActivity extends Activity {
   if(Build.VERSION.SDK_INT>=28)brandTitle.setAccessibilityHeading(true);
   header.addView(brandTitle,new LinearLayout.LayoutParams(0,-2,1));
   menuButton=headerButton(header,"⋮","Меню библиотеки",this::mainMenu);
-  settingsButton=headerButton(header,"⚙","Настройки",()->{
-   settingsReturn=visibleSurface;
-   showSurface(Surface.SETTINGS);
-  });
+  settingsButton=headerButton(header,"⚙","Настройки",()->openSurface(Surface.SETTINGS));
   body.addView(header);
  }
 
  private void buildCatalog(){
   catalog=column();
+  LinearLayout sources=horizontal();
+  weighted(sources,button("Радио",this::openRadio));
+  weighted(sources,button("Трекер",this::openTracker));
+  catalog.addView(sources);
   LinearLayout tabs=horizontal();
   gamesTab=button("Игры",()->browse(false));
   seriesTab=button("Серии",this::showSeries);
@@ -194,7 +206,7 @@ public class MainActivity extends Activity {
   miniCopy.setGravity(Gravity.CENTER_VERTICAL);
   miniCopy.setFocusable(true);
   describe(miniCopy,"Открыть плеер");
-  miniCopy.setOnClickListener(v->showSurface(Surface.PLAYER));
+  miniCopy.setOnClickListener(v->openSurface(Surface.PLAYER));
   miniPlayer.addView(miniCopy,new LinearLayout.LayoutParams(0,-2,1));
   miniToggle=button("▶",()->transport(PlaybackService::toggle));
   miniToggle.setTextSize(20);
@@ -212,18 +224,24 @@ public class MainActivity extends Activity {
   player.addView(display);
   playerDetail=text("",13,muted);
   player.addView(playerDetail);
-  generatorOptions=button("Режимы генератора",this::spaceMenu);
-  generatorOptions.setVisibility(View.GONE);
-  player.addView(generatorOptions);
-  voyagerOptions=button("Слои «Вояджера»",this::voyagerMenu);
-  voyagerOptions.setVisibility(View.GONE);
-  player.addView(voyagerOptions);
-  orbitInfo=text("",12,accent);
-  orbitInfo.setTypeface(Typeface.MONOSPACE);
-  orbitInfo.setPadding(dp(8),dp(8),dp(8),dp(8));
-  orbitInfo.setBackground(surface(panel));
-  orbitInfo.setVisibility(View.GONE);
-  player.addView(orbitInfo);
+  buildArrangementControls(player);
+  LinearLayout generatorActions=horizontal();
+  generatorOptions=button("Режимы",this::openTracker);
+  generatorSettings=button("Настройки режима",()->{
+   PlaybackService current=PlaybackService.instance;
+   if(current!=null&&current.spaceMode!=null)openTrackerSettings(current.spaceMode);
+  });
+  weighted(generatorActions,generatorOptions);
+  weighted(generatorActions,generatorSettings);
+  player.addView(generatorActions);
+  stationOptions=button("Станции",this::openRadio);
+  player.addView(stationOptions);
+  generatorInfo=text("",12,accent);
+  generatorInfo.setTypeface(Typeface.MONOSPACE);
+  generatorInfo.setPadding(dp(8),dp(8),dp(8),dp(8));
+  generatorInfo.setBackground(surface(panel));
+  generatorInfo.setVisibility(View.GONE);
+  player.addView(generatorInfo);
   spectrum=new HandheldSpectrum();
   spectrum.setBackground(surface(panel));
   LinearLayout.LayoutParams meterSize=new LinearLayout.LayoutParams(-1,dp(110));
@@ -264,6 +282,7 @@ public class MainActivity extends Activity {
   });
 
   LinearLayout controls=horizontal();
+  transportControls=controls;
   previousButton=button("Пред.",()->transport(PlaybackService::previous));
   describe(previousButton,"Предыдущий трек");
   play=button("Играть",()->transport(PlaybackService::toggle));
@@ -278,9 +297,11 @@ public class MainActivity extends Activity {
   controls.addView(play,mainSize);
   weighted(controls,nextButton);
   player.addView(controls);
-  player.addView(seekButtons(false));
+  playerSeek=seekButtons(false);
+  player.addView(playerSeek);
 
   LinearLayout actions=horizontal();
+  playerActions=actions;
   queueToggle=button("Треклист",()->{
    queueExpanded=!queueExpanded;
    shownQueuePosition=-1;
@@ -290,6 +311,8 @@ public class MainActivity extends Activity {
   weighted(actions,queueToggle);
   weighted(actions,queueButton);
   player.addView(actions);
+  sleepButton=button("Таймер сна",this::sleepMenu);
+  player.addView(sleepButton,new LinearLayout.LayoutParams(-1,-2));
   queueRows=column();
   player.addView(queueRows);
   Button poster=button("Постер игры",this::zoom);
@@ -299,6 +322,80 @@ public class MainActivity extends Activity {
   playerScroll=scroll(player);
   body.addView(playerScroll,new LinearLayout.LayoutParams(-1,0,1));
   shownQueuePosition=-1;
+ }
+
+ private void buildArrangementControls(LinearLayout player){
+  arrangementControls=column();
+  LinearLayout mode=horizontal();
+  originalAudio=button("Оригинал",()->arrangementMode(false));
+  arrangedAudio=button("Трекер",()->arrangementMode(true));
+  describe(originalAudio,"Оригинал · для всей очереди");
+  describe(arrangedAudio,"Трекер · для всей очереди");
+  weighted(mode,originalAudio);
+  weighted(mode,arrangedAudio);
+  arrangementControls.addView(mode);
+  arrangementOptions=column();
+  LinearLayout options=horizontal();
+  arrangementStyle=button("Стиль",this::chooseArrangementStyle);
+  arrangementLength=button("Длина",this::chooseArrangementLength);
+  weighted(options,arrangementStyle);
+  weighted(options,arrangementLength);
+  arrangementOptions.addView(options);
+  Button variation=button("Новый вариант",()->changeArrangement(true));
+  arrangementOptions.addView(variation,new LinearLayout.LayoutParams(-1,-2));
+  arrangementWalk=generatorCheckBox("Ритм шагов");
+  arrangementWalk.setTypeface(Typeface.MONOSPACE);
+  arrangementWalk.setChecked(library.preferences.getBoolean(PlaybackService.ARRANGEMENT_WALK,false));
+  arrangementWalk.setOnCheckedChangeListener((button,enabled)->{
+   library.preferences.edit().putBoolean(PlaybackService.ARRANGEMENT_WALK,enabled).apply();
+   PlaybackService service=PlaybackService.instance;
+   if(service!=null)service.arrangementWalking(enabled);
+  });
+  arrangementOptions.addView(arrangementWalk);
+  arrangementControls.addView(arrangementOptions);
+  player.addView(arrangementControls);
+ }
+
+ private void arrangementMode(boolean enabled){
+  if(library.preferences.getBoolean(PlaybackService.ARRANGEMENT_MODE,false)==enabled)return;
+  library.preferences.edit().putBoolean(PlaybackService.ARRANGEMENT_MODE,enabled).apply();
+  changeArrangement(false);
+ }
+
+ private void chooseArrangementStyle(){
+  AmbientArrangement.Style[] styles=AmbientArrangement.Style.values();
+  String[] labels=Arrays.stream(styles).map(style->style.title).toArray(String[]::new);
+  dialogBuilder().setTitle("Стиль трекера")
+   .setSingleChoiceItems(labels,PlaybackService.arrangementStyle(library.preferences).ordinal(),(dialog,index)->{
+    dialog.dismiss();
+    if(styles[index]==PlaybackService.arrangementStyle(library.preferences))return;
+    library.preferences.edit().putString(PlaybackService.ARRANGEMENT_STYLE,styles[index].name()).apply();
+    changeArrangement(false);
+   }).setNegativeButton("Закрыть",null).show();
+ }
+
+ private void chooseArrangementLength(){
+  AmbientArrangement.Length[] lengths=AmbientArrangement.Length.values();
+  String[] labels=Arrays.stream(lengths).map(length->length.title).toArray(String[]::new);
+  dialogBuilder().setTitle("Длина аранжировки")
+   .setSingleChoiceItems(labels,PlaybackService.arrangementLength(library.preferences).ordinal(),(dialog,index)->{
+    dialog.dismiss();
+    if(lengths[index]==PlaybackService.arrangementLength(library.preferences))return;
+    library.preferences.edit().putString(PlaybackService.ARRANGEMENT_LENGTH,lengths[index].name()).apply();
+    changeArrangement(false);
+   }).setNegativeButton("Закрыть",null).show();
+ }
+
+ private void changeArrangement(boolean variation){
+  PlaybackService service=PlaybackService.instance;
+  if(service!=null){service.refreshArrangement(variation);showTransport(service);}
+ }
+
+ private void arrangementSelection(Button button,boolean selected){
+  if(button.isSelected()==selected)return;
+  button.setSelected(selected);
+  button.setBackground(surface(selected?accent:panel));
+  button.setTextColor(selected?bg:accent);
  }
 
  private LinearLayout seekButtons(boolean albumControls){
@@ -345,7 +442,6 @@ public class MainActivity extends Activity {
   settings.addView(settingsProgress);
   addSetting(settings,"Сеть и обновления","Wi-Fi, мобильная сеть и обновления",this::syncSettings);
   addSetting(settings,"Оформление","Тема терминала",this::theme);
-  addSetting(settings,"Радио","Список станций",this::radioStations);
   if(RadioStations.available(this,true).stream().anyMatch(RadioStations.Station::personal))
    addSetting(settings,"Личный режим радио","Доступ по личному коду",this::personalRadio);
   addSetting(settings,"Обновление приложения","Проверить новую версию",this::appUpdateSettings);
@@ -354,7 +450,7 @@ public class MainActivity extends Activity {
   body.addView(settingsScroll,new LinearLayout.LayoutParams(-1,0,1));
  }
 
- private View addSetting(LinearLayout list,String name,String detail,Runnable action){
+ private TextView addSetting(LinearLayout list,String name,String detail,Runnable action){
   LinearLayout row=horizontal();
   row.setBackground(surface(panel));
   row.setMinimumHeight(dp(58));
@@ -371,7 +467,7 @@ public class MainActivity extends Activity {
   LinearLayout.LayoutParams spacing=new LinearLayout.LayoutParams(-1,-2);
   spacing.bottomMargin=dp(5);
   list.addView(row,spacing);
-  return row;
+  return title;
  }
 
  private void showSurface(Surface target){
@@ -380,16 +476,35 @@ public class MainActivity extends Activity {
   updateSurface();
   showTransport(PlaybackService.instance);
  }
+ private void openSurface(Surface target){
+  if(target==visibleSurface)return;
+  boolean playerSource=visibleSurface==Surface.PLAYER&&(target==Surface.RADIO||target==Surface.TRACKER);
+  if(!playerSource&&surfaceBack.contains(target)){
+   while(surfaceBack.pop()!=target){}
+  }else surfaceBack.push(visibleSurface);
+  showSurface(target);
+ }
 
  private void updateSurface(){
   boolean browsing=visibleSurface==Surface.CATALOG, playing=visibleSurface==Surface.PLAYER;
   catalog.setVisibility(browsing?View.VISIBLE:View.GONE);
-  miniPlayer.setVisibility(browsing?View.VISIBLE:View.GONE);
+  boolean radio=visibleSurface==Surface.RADIO,generated=visibleSurface==Surface.TRACKER;
+  miniPlayer.setVisibility(browsing||radio||generated?View.VISIBLE:View.GONE);
+  radioScroll.setVisibility(radio?View.VISIBLE:View.GONE);
+  trackerScroll.setVisibility(generated?View.VISIBLE:View.GONE);
+  trackerSettingsScroll.setVisibility(visibleSurface==Surface.TRACKER_SETTINGS?View.VISIBLE:View.GONE);
   playerScroll.setVisibility(playing?View.VISIBLE:View.GONE);
   settingsScroll.setVisibility(visibleSurface==Surface.SETTINGS?View.VISIBLE:View.GONE);
   menuButton.setVisibility(browsing?View.VISIBLE:View.GONE);
-  settingsButton.setVisibility(visibleSurface==Surface.SETTINGS?View.GONE:View.VISIBLE);
-  label(brandTitle,browsing?"GremlinAmp":playing?"Плеер":"Настройки");
+  settingsButton.setVisibility(visibleSurface==Surface.SETTINGS||visibleSurface==Surface.TRACKER_SETTINGS?View.GONE:View.VISIBLE);
+  label(brandTitle,switch(visibleSurface){
+   case CATALOG -> "GremlinAmp";
+   case PLAYER -> "Плеер";
+   case SETTINGS -> "Настройки";
+   case RADIO -> "Радио";
+   case TRACKER -> "Трекер";
+   case TRACKER_SETTINGS -> "Настройки режима";
+  });
   updateNavigation();
  }
 
@@ -499,9 +614,7 @@ public class MainActivity extends Activity {
   if(!library.preferences.getString("last_track_id","").isEmpty()){
    labels.add("Последняя композиция");actions.add(this::lastTrack);
   }
-  labels.add("Музыка космоса и города");actions.add(this::spaceMenu);
-  labels.add("Радио");actions.add(this::radioStations);
-  labels.add("Настройки");actions.add(()->{settingsReturn=Surface.CATALOG;showSurface(Surface.SETTINGS);});
+  labels.add("Настройки");actions.add(()->openSurface(Surface.SETTINGS));
   labels.add("Обновление приложения");actions.add(this::appUpdateSettings);
   dialogBuilder().setTitle("Библиотека").setItems(labels.toArray(new String[0]),(d,i)->actions.get(i).run()).show();
  }
@@ -568,58 +681,106 @@ public class MainActivity extends Activity {
  void takeDownloadPriority(){android.app.job.JobScheduler scheduler=(android.app.job.JobScheduler)getSystemService(JOB_SCHEDULER_SERVICE);scheduler.cancel(LibraryMaintenanceJob.ID);if(MusicSyncJob.active!=null){scheduler.cancel(MusicSyncJob.ID);MusicSyncJob.schedule(this,true);}}
  void pauseDownloads(){LibraryMaintenanceJob current=LibraryMaintenanceJob.active;if(current!=null&&current.library!=null)current.library.cancelWork();MusicSyncJob sync=MusicSyncJob.active;if(sync!=null&&sync.library!=null)sync.library.cancelWork();new Library(this).pausePending();((android.app.job.JobScheduler)getSystemService(JOB_SCHEDULER_SERVICE)).cancel(LibraryMaintenanceJob.ID);if(sync!=null){((android.app.job.JobScheduler)getSystemService(JOB_SCHEDULER_SERVICE)).cancel(MusicSyncJob.ID);MusicSyncJob.schedule(this,true);}if(DownloadService.instance!=null)startService(new Intent(this,DownloadService.class).putExtra("cancel",true));message("Загрузка приостановлена");refreshDownloadStates();}
  void startDownload(List<JSONObject> games,String seriesId){if(downloadsBusy())return;takeDownloadPriority();if(seriesId!=null)library.trackSeries(seriesId);JSONArray payload=new JSONArray();for(JSONObject game:games)payload.put(game);startingSequence=DownloadService.accepted.get();downloadStarting=true;try{startForegroundService(new Intent(this,DownloadService.class).putExtra("games",payload.toString()));message(library.networkAllowed()?"Начинаю скачивание…":"Загрузка продолжится при появлении разрешённой сети");}catch(Exception e){downloadStarting=false;message(e.getMessage());}}
- private void spaceMenu(){
-  LinearLayout options=column();
-  PlaybackService player=PlaybackService.instance;
-  AlertDialog dialog=dialogBuilder().setTitle("Музыка космоса и города")
-   .setView(scroll(options)).setNegativeButton("Закрыть",null).create();
-  for(SpaceTracker.Mode mode:SpaceTracker.Mode.values()){
-   boolean selected=player!=null&&player.spaceMode==mode;
-   addSetting(options,(selected?"•  ":"")+mode.title,mode.source,()->{
-    dialog.dismiss();
+ private void buildTracker(){
+  trackerModes=column();
+  trackerScroll=scroll(trackerModes);
+  trackerGroup("Атмосферы", SpaceTracker.Mode.TEA, SpaceTracker.Mode.WORKSHOP, SpaceTracker.Mode.WEATHER);
+  trackerGroup("Город", SpaceTracker.Mode.URBAN, SpaceTracker.Mode.CITY);
+  trackerGroup("Космос", SpaceTracker.Mode.VOYAGER, SpaceTracker.Mode.STARS, SpaceTracker.Mode.SOLAR,
+   SpaceTracker.Mode.ORBITS);
+  body.addView(trackerScroll,new LinearLayout.LayoutParams(-1,0,1));
+  trackerSettings=column();
+  trackerSettingsScroll=scroll(trackerSettings);
+  body.addView(trackerSettingsScroll,new LinearLayout.LayoutParams(-1,0,1));
+  if(trackerSettingsMode!=null)buildTrackerSettings(trackerSettingsMode);
+ }
+ private void trackerGroup(String title,SpaceTracker.Mode... modes){
+  trackerHeading(trackerModes,title);
+  for(SpaceTracker.Mode mode:modes){
+   LinearLayout row=horizontal();
+   LinearLayout track=column();
+   TextView label=addSetting(track,mode.title,mode.source,()->{
     playRequest++;
     command(service->{
      if(service.spaceMode!=mode||service.state==TransportState.ERROR)service.playSpace(mode);
      else service.resume();
-     showSurface(Surface.PLAYER);
+     openSurface(Surface.PLAYER);
     });
    });
+   row.addView(track,new LinearLayout.LayoutParams(0,-2,1));
+   Button options=button("⚙",()->openTrackerSettings(mode));
+   options.setTextSize(20);
+   describe(options,"Настройки · "+mode.title);
+   LinearLayout.LayoutParams params=new LinearLayout.LayoutParams(dp(48),dp(48));
+   params.leftMargin=dp(5);
+   row.addView(options,params);
+   trackerModes.addView(row);
+   trackerLabels.put(mode,label);
   }
-  addSetting(options,"Слои «Вояджера»","Запись плазмы · синтетические помехи",()->{
-   dialog.dismiss();
-   voyagerMenu();
-  });
-  CheckBox motion=generatorCheckBox("Ритм шагов и наклон");
-  motion.setChecked(library.preferences.getBoolean("space_motion",true));
-  motion.setOnCheckedChangeListener((button,on)->{
-   library.preferences.edit().putBoolean("space_motion",on).apply();
+ }
+ private void openTracker(){
+  openSurface(Surface.TRACKER);
+ }
+ private void openTrackerSettings(SpaceTracker.Mode mode){
+  trackerSettingsMode=mode;
+  buildTrackerSettings(mode);
+  trackerSettingsScroll.scrollTo(0,0);
+  openSurface(Surface.TRACKER_SETTINGS);
+ }
+ private void trackerHeading(LinearLayout group,String title){
+  TextView heading=text(title,15,accent);
+  heading.setTypeface(Typeface.MONOSPACE,Typeface.BOLD);
+  if(Build.VERSION.SDK_INT>=28)heading.setAccessibilityHeading(true);
+  group.addView(heading);
+ }
+ private void buildTrackerSettings(SpaceTracker.Mode mode){
+  trackerSettings.removeAllViews();
+  cityMicControl=null;
+  TextView title=text(mode.title,25,fg);
+  title.setTypeface(Typeface.MONOSPACE,Typeface.BOLD);
+  trackerSettings.addView(title);
+  trackerSettings.addView(text(mode.source,13,muted));
+  if(mode.usesMotion())
+   trackerOption(mode,"motion","Ритм шагов и наклон",TrackerPreferences.motion(library.preferences,mode));
+  switch(mode){
+   case VOYAGER -> {
+    trackerOption(mode,"plasma","Архивный сигнал плазмы",TrackerPreferences.plasma(library.preferences));
+    trackerOption(mode,"noise","Синтетический шум и искажения",TrackerPreferences.noise(library.preferences,mode));
+   }
+   case STARS,SOLAR -> trackerOption(mode,"noise","Шум и искажения",TrackerPreferences.noise(library.preferences,mode));
+   case TEA -> trackerOption(mode,"clock","Менять звучание по времени суток",true);
+   case WORKSHOP -> trackerOption(mode,"shifting_accents","Смещать ритмические акценты",true);
+   case URBAN -> trackerOption(mode,"clock","Менять темп по времени суток",true);
+   case WEATHER,ORBITS -> {
+    trackerOption(mode,"refresh","Обновлять данные каждые 10 минут",true);
+    trackerSettings.addView(text("Без обновлений используется последний сохранённый срез.",13,muted));
+   }
+   case CITY -> {
+    CheckBox mic=generatorCheckBox("Уличный звук через микрофон");
+    cityMicControl=mic;
+    mic.setChecked(library.preferences.getBoolean(CITY_MIC,false));
+    mic.setOnCheckedChangeListener((button,on)->{
+     library.preferences.edit().putBoolean(CITY_MIC,on).apply();
+     if(on&&checkSelfPermission(android.Manifest.permission.RECORD_AUDIO)!=0)
+      requestPermissions(new String[]{android.Manifest.permission.RECORD_AUDIO},CITY_MIC_PERMISSION);
+     updateStreetInput(PlaybackService.instance);
+    });
+    trackerSettings.addView(mic);
+   }
+  }
+ }
+ private void trackerOption(SpaceTracker.Mode mode,String option,String title,boolean fallback){
+  CheckBox control=generatorCheckBox(title);
+  String key=TrackerPreferences.key(mode,option);
+  control.setChecked(library.preferences.getBoolean(key,fallback));
+  control.setOnCheckedChangeListener((button,on)->{
+   library.preferences.edit().putBoolean(key,on).apply();
    PlaybackService current=PlaybackService.instance;
-   if(current!=null)current.spaceMotionEnabled(on);
+   if(current==null)return;
+   if(option.equals("refresh"))current.trackerNetworkChanged(mode);
+   else current.refreshTrackerOptions(mode);
   });
-  options.addView(motion);
-  CheckBox effects=generatorCheckBox("Шум и искажения · «Звёзды» и «Солнечная система»");
-  effects.setChecked(library.preferences.getBoolean("space_effects",false));
-  effects.setOnCheckedChangeListener((button,on)->{
-   android.content.SharedPreferences.Editor preferences=library.preferences.edit().putBoolean("space_effects",on);
-   if(!library.preferences.contains("voyager_effects"))
-    preferences.putBoolean("voyager_effects",library.preferences.getBoolean("space_effects",false));
-   preferences.apply();
-   PlaybackService current=PlaybackService.instance;
-   if(current!=null)current.spaceEffects(on);
-  });
-  options.addView(effects);
-  CheckBox mic=generatorCheckBox("Уличный звук через микрофон · «Москва»");
-  cityMicControl=mic;
-  mic.setChecked(cityMic);
-  mic.setOnCheckedChangeListener((button,on)->{
-   cityMic=on;
-   if(on&&checkSelfPermission(android.Manifest.permission.RECORD_AUDIO)!=0)
-    requestPermissions(new String[]{android.Manifest.permission.RECORD_AUDIO},CITY_MIC_PERMISSION);
-   updateStreetInput(PlaybackService.instance);
-  });
-  options.addView(mic);
-  dialog.setOnDismissListener(d->{if(cityMicControl==mic)cityMicControl=null;});
-  dialog.show();
+  trackerSettings.addView(control);
  }
  private CheckBox generatorCheckBox(String label){
   CheckBox option=new CheckBox(this);
@@ -630,31 +791,9 @@ public class MainActivity extends Activity {
    new int[][]{new int[]{android.R.attr.state_checked},new int[0]},new int[]{accent,muted}));
   return option;
  }
- private void voyagerMenu(){
-  LinearLayout options=column();
-  TextView description=text("Трекер Mission Control играет во всех сочетаниях.",13,muted);
-  description.setPadding(dp(12),dp(8),dp(12),dp(4));
-  options.addView(description);
-  CheckBox plasma=generatorCheckBox("Архивный сигнал плазмы");
-  plasma.setChecked(library.preferences.getBoolean("space_plasma",true));
-  plasma.setOnCheckedChangeListener((button,on)->{
-   library.preferences.edit().putBoolean("space_plasma",on).apply();
-   PlaybackService current=PlaybackService.instance;
-   if(current!=null)current.spacePlasma(on);
-  });
-  options.addView(plasma);
-  CheckBox effects=generatorCheckBox("Синтетический шум и искажения");
-  effects.setChecked(library.preferences.getBoolean("voyager_effects",library.preferences.getBoolean("space_effects",false)));
-  effects.setOnCheckedChangeListener((button,on)->{
-   library.preferences.edit().putBoolean("voyager_effects",on).apply();
-   PlaybackService current=PlaybackService.instance;
-   if(current!=null)current.voyagerEffects(on);
-  });
-  options.addView(effects);
-  dialogBuilder().setTitle("Слои «Вояджера»").setView(scroll(options)).setPositiveButton("Готово",null).show();
- }
  private void updateStreetInput(PlaybackService service){
-  PlaybackService target=foreground&&cityMic&&service!=null&&service.spaceMode==SpaceTracker.Mode.CITY&&
+  PlaybackService target=foreground&&service!=null&&service.spaceMode==SpaceTracker.Mode.CITY
+    &&library.preferences.getBoolean(CITY_MIC,false)&&
     service.state.wantsPlayback()&&checkSelfPermission(android.Manifest.permission.RECORD_AUDIO)==0?service:null;
   if(target==streetPlayer)return;
   if(cityInput!=null)cityInput.stop();
@@ -664,23 +803,35 @@ public class MainActivity extends Activity {
  @Override public void onRequestPermissionsResult(int code,String[] permissions,int[] grants){
   super.onRequestPermissionsResult(code,permissions,grants);
   if(code==CITY_MIC_PERMISSION){
-   cityMic=cityMic&&grants.length>0&&grants[0]==android.content.pm.PackageManager.PERMISSION_GRANTED;
-   if(cityMicControl!=null)cityMicControl.setChecked(cityMic);
+   boolean enabled=library.preferences.getBoolean(CITY_MIC,false)&&grants.length>0
+    &&grants[0]==android.content.pm.PackageManager.PERMISSION_GRANTED;
+   library.preferences.edit().putBoolean(CITY_MIC,enabled).apply();
+   if(cityMicControl!=null)cityMicControl.setChecked(enabled);
    updateStreetInput(PlaybackService.instance);
   }
  }
- void radioStations(){
+ private void buildRadio(){
+  radioRows=column();
+  radioScroll=scroll(radioRows);
+  body.addView(radioScroll,new LinearLayout.LayoutParams(-1,0,1));
+ }
+ private void openRadio(){
+  radioRows.removeAllViews();
+  radioLabels.clear();
   boolean personal=library.preferences.getBoolean(RadioStations.PERSONAL_MODE,false);
-  List<RadioStations.Station> stations=RadioStations.available(this,personal);
-  List<String> names=new ArrayList<>();
-  PlaybackService player=PlaybackService.instance;
-  for(RadioStations.Station station:stations)
-   names.add(player!=null&&station.equals(player.station)&&player.state.wantsPlayback()?"▶  "+station.title():station.title());
-  dialogBuilder().setTitle("Радио").setItems(names.toArray(new String[0]),(d,i)->{
-   if(!library.networkAllowed()){message("Для радио нужна разрешённая сеть");return;}
-   playRequest++;
-   command(service->service.playRadio(stations.get(i)));
-  }).setNegativeButton("Закрыть",null).show();
+  for(RadioStations.Station station:RadioStations.available(this,personal)){
+   TextView title=addSetting(radioRows,station.title(),station.personal()?"Личная станция":"Прямой эфир",()->{
+    if(!library.networkAllowed()){
+     Toast.makeText(this,"Для радио нужна разрешённая сеть",Toast.LENGTH_SHORT).show();
+     return;
+    }
+    playRequest++;
+    command(service->{service.playRadio(station);openSurface(Surface.PLAYER);});
+   });
+   radioLabels.put(station,title);
+  }
+  radioScroll.scrollTo(0,0);
+  openSurface(Surface.RADIO);
  }
  void personalRadio(){
   if(library.preferences.getBoolean(RadioStations.PERSONAL_MODE,false)){
@@ -707,9 +858,9 @@ public class MainActivity extends Activity {
   });
   update.run();
   confirm.setOnClickListener(v->{
-   if(!RadioStations.acceptsCode(code.getText().toString())){code.setError("Неверный код");return;}
+   if(!RadioStations.acceptsCode(MainActivity.this, code.getText().toString())){code.setError("Неверный код");return;}
    library.preferences.edit().putBoolean(RadioStations.PERSONAL_MODE,true).apply();
-   dialog.dismiss();radioStations();
+   dialog.dismiss();openRadio();
   });
  }
  void link(String url){try{startActivity(new Intent(Intent.ACTION_VIEW,android.net.Uri.parse(url)));}catch(Exception e){message("Не удалось открыть ссылку");}}
@@ -840,9 +991,8 @@ public class MainActivity extends Activity {
   dialog.show();
  }
  void trackInfo(JSONObject track){
-  long known=library.knownDuration(track);
   String details="Формат: "+track.optString("format")+"\nВнутренний номер: "+track.optInt("subsong")
-          +"\nДлительность: "+(known>=0?stamp(known):"неизвестна");
+          +"\nДлительность: "+trackLength(track);
   for(String field:new String[]{"label","source_kind","credit"})if(!track.optString(field).isEmpty())details+="\n"+track.optString(field);
   if(MusicContract.decoder(track).isEmpty())details+="\n"+MusicContract.unsupported(track);
   try{JSONObject timing=library.timing(track);if(timing!=null)details+="\nПроверка звука: "+(timing.optLong("ended_ms",-1)>=0?"конец обнаружен":"не закончился за 180 секунд");}catch(Exception ignored){}
@@ -985,7 +1135,7 @@ public class MainActivity extends Activity {
            ||(!q.trim().startsWith("ra")||raQuery.isEmpty())
            &&(title.toLowerCase(Locale.ROOT).contains(q)||(gameSearch&&r.optString("id").equalsIgnoreCase(q)));
    if(!matches||!letter.isEmpty()&&!initial(title).equals(letter))continue;
-   int index=screen.equals("tracks")?trackPosition:-1;if(tracks&&(library.hiddenShort(r)||!matchesGame(album)||originFilter!=HandheldTrackSearch.Origin.ALL&&HandheldTrackSearch.Origin.of(r)!=originFilter))continue;long measured=tracks?library.displayDuration(r):-1;String detail=screen.equals("tracks")?r.optString("format").toUpperCase(Locale.ROOT)+" · "+(measured>=0?stamp(measured):"--:--")+" · "+HandheldTrackSearch.Origin.of(r).label:screen.equals("series")?"Игр с музыкой: "+seriesCount(r):r.optString("platform_label")+(r.has("year")?" · "+r.optInt("year"):"")+" · "+r.optInt("track_count")+" треков";
+   int index=screen.equals("tracks")?trackPosition:-1;if(tracks&&(library.hiddenShort(r)||!matchesGame(album)||originFilter!=HandheldTrackSearch.Origin.ALL&&HandheldTrackSearch.Origin.of(r)!=originFilter))continue;String detail=screen.equals("tracks")?r.optString("format").toUpperCase(Locale.ROOT)+" · "+trackLength(r)+" · "+HandheldTrackSearch.Origin.of(r).label:screen.equals("series")?"Игр с музыкой: "+seriesCount(r):r.optString("platform_label")+(r.has("year")?" · "+r.optInt("year"):"")+" · "+r.optInt("track_count")+" треков";
    if(index>=0&&MusicContract.decoder(r).isEmpty())detail+=" · "+MusicContract.unsupported(r);
    if(!screen.equals("tracks"))detail+=" · "+(screen.equals("series")?seriesSavedLabel(r):downloadDescriptions.getOrDefault(r.optString("id"),""));final boolean seriesRow=screen.equals("series"),trackRow=screen.equals("tracks");LinearLayout row=new LinearLayout(this);row.setGravity(Gravity.CENTER_VERTICAL);row.setPadding(dp(6),dp(6),dp(6),dp(6));row.setMinimumHeight(dp(54));row.setBackground(surface(bg));
  if(trackRow){TextView marker=text("",12,accent);marker.setTag("playing-track-marker");row.addView(marker,new LinearLayout.LayoutParams(dp(25),-2));}
@@ -1168,32 +1318,63 @@ public class MainActivity extends Activity {
  void awaitService(Command c,int tries,int intent){handler.postDelayed(()->{if(isFinishing()||clearingDownloads||intent!=playRequest)return;if(PlaybackService.instance!=null)c.run(PlaybackService.instance);else if(tries<20)awaitService(c,tries+1,intent);else message("Не удалось запустить проигрыватель");},100);}
  static String trackKey(JSONObject track){JSONObject asset=track==null?null:track.optJSONObject("asset");return asset==null?"":track.optString("id",asset.optString("sha256")+":"+track.optInt("subsong"));}
  static String stamp(long ms){return String.format(Locale.ROOT,"%02d:%02d",ms/60000,ms/1000%60);}
+ private String trackLength(JSONObject track){
+  long ms=library.displayDuration(track);
+  return ms<0?"--:--":stamp(ms)+(library.looping(track)?" ↻":"");
+ }
  void showTransport(PlaybackService service){
   if(service!=null)service.handheldSpectrum=visibleSurface==Surface.PLAYER&&foreground;
   PlaybackIdentity.View now=service==null?null:service.identity.snapshot();
   PlaybackService.Entry entry=service==null?null:service.currentEntry();
   boolean radio=service!=null&&service.station!=null,generated=service!=null&&service.spaceMode!=null;
   boolean active=radio||generated||entry!=null;
-  generatorOptions.setVisibility(generated?View.VISIBLE:View.GONE);
-  voyagerOptions.setVisibility(generated&&service.spaceMode==SpaceTracker.Mode.VOYAGER?View.VISIBLE:View.GONE);
+  boolean arranged=entry!=null&&service.arrangementEnabled();
+  arrangementControls.setVisibility(entry!=null?View.VISIBLE:View.GONE);
+  arrangementOptions.setVisibility(arranged?View.VISIBLE:View.GONE);
+  arrangementSelection(originalAudio,!arranged);
+  arrangementSelection(arrangedAudio,arranged);
+  if(arranged){
+   String style=PlaybackService.arrangementStyle(library.preferences).title;
+   String length=PlaybackService.arrangementLength(library.preferences).title;
+   label(arrangementStyle,style+"  ▾");
+   describe(arrangementStyle,"Стиль трекера · "+style);
+   label(arrangementLength,length+"  ▾");
+   describe(arrangementLength,"Длина аранжировки · "+length);
+  }
+  ((View)generatorOptions.getParent()).setVisibility(generated?View.VISIBLE:View.GONE);
+  stationOptions.setVisibility(radio?View.VISIBLE:View.GONE);
+  transportControls.setVisibility(active?View.VISIBLE:View.GONE);
+  previousButton.setVisibility(entry!=null?View.VISIBLE:View.GONE);
+  nextButton.setVisibility(entry!=null?View.VISIBLE:View.GONE);
+  playerSeek.setVisibility(entry!=null?View.VISIBLE:View.GONE);
+  playerActions.setVisibility(entry!=null?View.VISIBLE:View.GONE);
+  sleepButton.setVisibility(active?View.VISIBLE:View.GONE);
+  long sleep=service==null?0:service.sleepRemaining();
+  String timer=sleep>0?"Таймер сна · "+stamp(((sleep+999)/1000)*1000):"Таймер сна";
+  label(sleepButton,timer);
+  describe(sleepButton,timer);
   boolean orbits=generated&&service.spaceMode==SpaceTracker.Mode.ORBITS;
-  orbitInfo.setVisibility(orbits?View.VISIBLE:View.GONE);
-  if(orbits&&visibleSurface==Surface.PLAYER)label(orbitInfo,service.orbitStatus());
+  boolean weather=generated&&service.spaceMode==SpaceTracker.Mode.WEATHER;
+  generatorInfo.setVisibility(orbits||weather?View.VISIBLE:View.GONE);
+  if((orbits||weather)&&visibleSurface==Surface.PLAYER)
+   label(generatorInfo,orbits?service.orbitStatus():service.weatherStatus());
   updateStreetInput(service);
   boolean running=active&&service.state.wantsPlayback();
   boolean seeking=active&&service.seekAvailable();
-  seek.setVisibility(generated?View.GONE:View.VISIBLE);
+  seek.setVisibility(entry!=null?View.VISIBLE:View.GONE);
   String title=active?now.title:"Выберите композицию";
   String metadata=active?now.game:"";
   if(entry!=null){
    String platform=entry.game.optString("platform_label",entry.game.optString("platform"));
    if(!platform.isEmpty())metadata+=(metadata.isEmpty()?"":" · ")+platform;
+   if(service.activeArrangement!=null)metadata+="\n"+service.activeArrangement.title+" · "+service.activeArrangement.bpm+" BPM";
   }
   label(display,title);
   label(playerDetail,metadata);
   label(miniTitle,(running?"▶  ":active?"•  ":"")+title);
   String position=active?stamp(service.currentPosition()):"00:00";
-  String length=active&&service.durationKnown?stamp(service.duration):"--:--";
+  boolean original=entry!=null&&(!arranged||service.arrangementFallback);
+  String length=active&&service.durationKnown?stamp(service.duration)+(original&&service.durationLoop?" ↻":""):"--:--";
   if(!dragging||service==null||service!=seekOwner||service.generation!=seekGeneration)label(time,radio?"ПРЯМОЙ ЭФИР":generated?position+" · "+service.spaceTempo()+" BPM":position+" / "+length);
   label(miniDetail,radio?"Прямой эфир":generated?"Генератор · "+service.spaceTempo()+" BPM":active?(now.game.isEmpty()?"":now.game+" · ")+position:"Открыть плеер  ⌃");
   describe(miniPlayer.getChildAt(0),"Открыть плеер · "+title);
@@ -1218,7 +1399,7 @@ public class MainActivity extends Activity {
   else playerPoster.setVisibility(art.isEmpty()?View.GONE:View.VISIBLE);
   String state=service==null?"Выберите трек":switch(service.state){
    case IDLE -> "Выберите трек";
-   case LOADING -> radio?"Подключение к станции…":generated?"Запускаю генератор…":"Загрузка композиции…";
+   case LOADING -> radio?"Подключение к станции…":generated?"Запускаю генератор…":arranged&&!service.arrangementFallback?"Создаю аранжировку…":"Загрузка композиции…";
    case LOADING_PAUSED -> "Пауза · композиция ещё загружается";
    case PLAYING -> radio?(service.station.credit().isEmpty()?"▶  Радио играет":service.station.credit()):"▶  Играет";
    case PAUSED -> radio?"Радио остановлено":"Ⅱ  Пауза";
@@ -1226,12 +1407,56 @@ public class MainActivity extends Activity {
    case ENDED -> service.error.isEmpty()?"Очередь завершена":service.error;
    case ERROR -> service.error;
   };
-  label(playbackStatus,state);
+  if(service!=null&&service.arrangementFallback&&service.state==TransportState.PLAYING)state="▶  Оригинал · "+service.arrangementProblem;
+  label(playbackStatus,service!=null&&service.sleepExpired?"Остановлено по таймеру":state);
   highlightTrack(entry);
+  if(visibleSurface==Surface.TRACKER)
+   trackerLabels.forEach((mode,view)->updateSourceMarker(view,mode.title,mode.source,generated&&service.spaceMode==mode,running));
+  if(visibleSurface==Surface.RADIO)
+   radioLabels.forEach((station,view)->updateSourceMarker(view,station.title(),station.personal()?"Личная станция":"Прямой эфир",radio&&station.equals(service.station),running));
   if(visibleSurface==Surface.PLAYER){
    updatePlayerQueue(service);
    spectrum.invalidate();
   }
+ }
+ private void updateSourceMarker(TextView view,String title,String detail,boolean selected,boolean running){
+  label(view,(selected?(running?"▶  ":"Ⅱ  "):"")+title);
+  describe((View)view.getParent().getParent(),title+" · "+detail+(selected?(running?" · играет":" · на паузе"):""));
+ }
+ private void sleepMenu(){
+  PlaybackService service=PlaybackService.instance;
+  if(service==null)return;
+  int step=PlaybackService.SLEEP_STEP_MINUTES;
+  long remaining=service.sleepRemaining();
+  int[] minutes={remaining>0?(int)((remaining+step*60_000L-1)/(step*60_000L))*step:15};
+  LinearLayout content=column();
+  content.setPadding(dp(12),0,dp(12),0);
+  content.addView(text(remaining>0?"Осталось "+stamp(((remaining+999)/1000)*1000):"Остановить воспроизведение через",13,muted));
+  LinearLayout adjustment=horizontal();
+  TextView duration=text("",20,fg);
+  duration.setGravity(Gravity.CENTER);
+  Button less=button("−5 мин",()->{});
+  Button more=button("+5 мин",()->{});
+  Runnable update=()->{
+   label(duration,minutes[0]+" мин");
+   enableAction(less,minutes[0]>step);
+   enableAction(more,minutes[0]<PlaybackService.SLEEP_MAX_MINUTES);
+  };
+  less.setOnClickListener(v->{minutes[0]-=step;update.run();});
+  more.setOnClickListener(v->{minutes[0]+=step;update.run();});
+  weighted(adjustment,less);
+  adjustment.addView(duration,new LinearLayout.LayoutParams(0,-2,1.15f));
+  weighted(adjustment,more);
+  content.addView(adjustment);
+  update.run();
+  AlertDialog.Builder dialog=dialogBuilder().setTitle("Таймер сна").setView(content)
+   .setNegativeButton("Назад",null).setPositiveButton(remaining>0?"Перезапустить":"Запустить",(d,w)->{
+    if(PlaybackService.instance==service){service.sleepTimer(minutes[0]);showTransport(service);}
+   });
+  if(remaining>0)dialog.setNeutralButton("Выключить",(d,w)->{
+   if(PlaybackService.instance==service){service.sleepTimer(0);showTransport(service);}
+  });
+  dialog.show();
  }
 
  private void updatePlayerQueue(PlaybackService service){
@@ -1249,10 +1474,12 @@ public class MainActivity extends Activity {
   while(last<queue.size()&&gameId.equals(queue.get(last).game.optString("id")))last++;
   label(queueToggle,"Треклист "+(current-first+1)+"/"+(last-first)+(queueExpanded?" −":" +"));
   queueRows.setVisibility(queueExpanded?View.VISIBLE:View.GONE);
-  if(!queueExpanded||queue==shownQueue&&current==shownQueuePosition)return;
-  boolean follow=shownQueuePosition>=0;
+  long timingRevision=Library.revision.get();
+  if(!queueExpanded||queue==shownQueue&&current==shownQueuePosition&&shownTimingRevision==timingRevision)return;
+  boolean follow=shownQueuePosition>=0&&(queue!=shownQueue||current!=shownQueuePosition);
   shownQueue=queue;
   shownQueuePosition=current;
+  shownTimingRevision=timingRevision;
   queueRows.removeAllViews();
   View selected=null;
   for(int i=first;i<last;i++){
@@ -1262,12 +1489,18 @@ public class MainActivity extends Activity {
    final int index=i;
    boolean playing=i==current;
    TextView row=text((playing?"▶  ":"    ")+track.optString("title"),14,playing?accent:fg);
+   TextView length=text(trackLength(track),12,playing?accent:muted);
    row.setMinHeight(dp(48));
    row.setGravity(Gravity.CENTER_VERTICAL);
-   row.setBackground(surface(playing?panel:bg));
-   row.setSelected(playing);
-   row.setFocusable(true);
-   row.setOnClickListener(v->{
+   length.setGravity(Gravity.CENTER_VERTICAL);
+   LinearLayout line=horizontal();
+   line.setGravity(Gravity.CENTER_VERTICAL);
+   line.addView(row,new LinearLayout.LayoutParams(0,-2,1));
+   line.addView(length);
+   line.setBackground(surface(playing?panel:bg));
+   line.setSelected(playing);
+   line.setFocusable(true);
+   line.setOnClickListener(v->{
     PlaybackService live=PlaybackService.instance;
     if(live==service&&live.queue==queue&&!clearingDownloads){
      playRequest++;
@@ -1275,9 +1508,9 @@ public class MainActivity extends Activity {
      showTransport(live);
     }
    });
-   row.setOnLongClickListener(v->{trackInfo(track);return true;});
-   queueRows.addView(row);
-   if(playing)selected=row;
+   line.setOnLongClickListener(v->{trackInfo(track);return true;});
+   queueRows.addView(line);
+   if(playing)selected=line;
   }
   if(follow&&selected!=null)revealTrack(selected);
  }
@@ -1434,8 +1667,7 @@ public class MainActivity extends Activity {
  void zoom(){zoomPath(artPath);}
  void zoomPath(String path){if(path.isEmpty()){message("Постер пока не загружен");return;}Dialog d=new Dialog(this,android.R.style.Theme_Material_NoActionBar);LinearLayout layout=new LinearLayout(this);layout.setOrientation(1);layout.setBackgroundColor(bg);layout.addView(button("Закрыть",d::dismiss));PosterView image=new PosterView(this,Library.artwork(new java.io.File(path)));layout.addView(image,new LinearLayout.LayoutParams(-1,0,1));d.setContentView(layout);d.getWindow().setLayout(-1,-1);d.show();d.getWindow().setLayout(-1,-1);}
  public void onBackPressed(){
-  if(visibleSurface==Surface.SETTINGS){showSurface(settingsReturn);return;}
-  if(visibleSurface==Surface.PLAYER){showSurface(Surface.CATALOG);return;}
+  if(!surfaceBack.isEmpty()){showSurface(surfaceBack.pop());return;}
   requestId++;if(!backStack.isEmpty()){backStack.pop().restore();return;}if(local||screen.equals("series")){browse(false);return;}super.onBackPressed();}
  @Override protected void onStart(){super.onStart();foreground=true;showTransport(PlaybackService.instance);}
  @Override protected void onStop(){

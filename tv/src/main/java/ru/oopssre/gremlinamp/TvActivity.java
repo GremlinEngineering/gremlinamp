@@ -76,7 +76,9 @@ public final class TvActivity extends Activity {
     private Palette palette;
     private static final long HINT_TIMEOUT_MS = 4_000;
     private static final String[] CONTINUATION = {"stop", "series", "library", "genre", "similar", "rhythm", "sound"};
-    private enum Page { RADIO, GAMES, SERIES, SEARCH, ALBUM }
+    private enum Page { RADIO, TRACKER, GAMES, SERIES, SEARCH, ALBUM }
+    private static final List<SpaceTracker.Mode> SPACE_MODES = List.of(SpaceTracker.Mode.VOYAGER,
+            SpaceTracker.Mode.STARS, SpaceTracker.Mode.SOLAR, SpaceTracker.Mode.ORBITS);
     private record SearchHit(JSONObject game, JSONObject track, TrackOrigin origin) {}
     private record ListRow(String label, String platform, String gameId) {
         ListRow(String label) { this(label, "", ""); }
@@ -122,6 +124,8 @@ public final class TvActivity extends Activity {
     private PlaybackService.Entry displayedAlbum;
     private PlaybackService.Entry markedEntry;
     private RadioStations.Station markedStation;
+    private SpaceTracker.Mode markedSpace;
+    private long shownTimingRevision = -1;
     private int markedTrack = -1;
     private TransportState markedState = TransportState.IDLE;
     private TextView heading, status, transport, hint;
@@ -130,7 +134,10 @@ public final class TvActivity extends Activity {
     private SpectrumView spectrumView;
     private SeekBar seek;
     private Button searchButton, playButton, nextButton, previousButton, continuationButton;
-    private Button radioButton, gamesButton, seriesButton, sceneButton;
+    private Button radioButton, trackerButton, gamesButton, seriesButton, sceneButton;
+    private Button arrangementButton, sleepButton, spaceOptionsButton;
+    private LinearLayout playerOptions;
+    private TextView orbitInfo;
     private LinearLayout trackControls;
     private int selectedScene;
     private AlertDialog updateDialog;
@@ -177,6 +184,7 @@ public final class TvActivity extends Activity {
         title.setTypeface(Typeface.MONOSPACE, Typeface.BOLD);
         nav.addView(title, new LinearLayout.LayoutParams(0, -2, 1));
         radioButton = navigationTab(nav, "Радио", this::showRadio);
+        trackerButton = navigationTab(nav, "Трекер", this::showTracker);
         gamesButton = navigationTab(nav, "Игры", () -> showCatalog(Page.GAMES));
         seriesButton = navigationTab(nav, "Серии", () -> showCatalog(Page.SERIES));
         searchButton = navigationTab(nav, "Поиск", this::search);
@@ -297,6 +305,9 @@ public final class TvActivity extends Activity {
         current.addView(playingContext);
         playingPlatform = terminalText("", 14, palette.muted);
         current.addView(playingPlatform);
+        orbitInfo = terminalText("", 12, palette.muted);
+        orbitInfo.setVisibility(View.GONE);
+        current.addView(orbitInfo);
 
         spectrumView = new SpectrumView();
         spectrumView.setVisibility(View.GONE);
@@ -314,6 +325,12 @@ public final class TvActivity extends Activity {
         seek.setId(View.generateViewId());
         seek.setFocusable(true);
         seek.setContentDescription("Перемотка");
+        seek.setOnKeyListener((view, key, event) -> {
+            if (key != KeyEvent.KEYCODE_DPAD_LEFT && key != KeyEvent.KEYCODE_DPAD_RIGHT) return false;
+            if (event.getAction() == KeyEvent.ACTION_DOWN)
+                withService(service -> service.seekRelative(key == KeyEvent.KEYCODE_DPAD_LEFT ? -10_000 : 10_000), false);
+            return true;
+        });
         seek.setThumb(null);
         seek.setPadding(0, dp(4), 0, dp(4));
         seek.setProgressDrawable(new SegmentScale());
@@ -336,9 +353,17 @@ public final class TvActivity extends Activity {
         for (Button button : new Button[]{previousButton, playButton, nextButton}) {
             button.setLayoutParams(new LinearLayout.LayoutParams(0, dp(44), 1));
         }
+        playerOptions = new LinearLayout(this);
+        controls.addView(playerOptions);
+        arrangementButton = terminalButton(playerOptions, "Оригинал", this::chooseArrangement, 13);
+        spaceOptionsButton = terminalButton(playerOptions, "Эффекты", this::chooseSpaceEffects, 13);
+        sleepButton = terminalButton(playerOptions, "Таймер сна", this::sleepMenu, 13);
+        for (Button button : new Button[]{arrangementButton, spaceOptionsButton, sleepButton})
+            button.setLayoutParams(new LinearLayout.LayoutParams(0, dp(44), 1));
         continuationButton = terminalButton(controls, "После очереди", this::chooseContinuation, 13);
         updateContinuationLabel();
-        for (View control : new View[]{sceneButton, seek, playButton, previousButton, nextButton, continuationButton}) {
+        for (View control : new View[]{sceneButton, playButton, previousButton, nextButton, continuationButton,
+                arrangementButton, spaceOptionsButton, sleepButton}) {
             control.setNextFocusLeftId(list.getId());
         }
         playButton.setNextFocusLeftId(previousButton.getId());
@@ -558,14 +583,17 @@ public final class TvActivity extends Activity {
         PlaybackService service = PlaybackService.instance;
         markedEntry = activeTrack(service);
         markedStation = activeStation(service);
+        markedSpace = activeSpace(service);
         markedState = service == null ? TransportState.IDLE : service.state;
         markedTrack = markedRow();
         listNumbers.setVisibility(page == Page.ALBUM ? View.VISIBLE : View.GONE);
-        listPlatform.setVisibility(page == Page.GAMES ? View.VISIBLE : View.GONE);
+        listPlatform.setVisibility(page == Page.GAMES || page == Page.ALBUM ? View.VISIBLE : View.GONE);
+        listPlatform.setText(page == Page.ALBUM ? "ВРЕМЯ" : "ПЛАТФОРМА");
         listColumns.setText(switch (page) {
             case GAMES -> "ИГРА";
             case SERIES -> "СЕРИЯ";
             case RADIO -> "СТАНЦИЯ";
+            case TRACKER -> "РЕЖИМ";
             case SEARCH, ALBUM -> "ТРЕК";
         });
         list.setAdapter(new ArrayAdapter<ListRow>(this, android.R.layout.simple_list_item_1, rows) {
@@ -623,10 +651,12 @@ public final class TvActivity extends Activity {
             label.setText(row.label());
             label.setTextColor(focused ? palette.focusInk : active ? palette.accent : palette.ink);
             label.setTypeface(Typeface.MONOSPACE, focused ? Typeface.BOLD : Typeface.NORMAL);
-            platform.setVisibility(page == Page.GAMES ? View.VISIBLE : View.GONE);
-            platform.setText(row.platform());
+            boolean timed = page == Page.ALBUM && position < displayedTracks.size();
+            String detail = timed ? rowDuration(track(displayedTracks.get(position)), active) : row.platform();
+            platform.setVisibility(page == Page.GAMES || timed ? View.VISIBLE : View.GONE);
+            platform.setText(detail);
             platform.setTextColor(focused ? palette.focusInk : palette.muted);
-            setContentDescription(row.label() + (row.platform().isEmpty() ? "" : ", " + row.platform())
+            setContentDescription(row.label() + (detail.isEmpty() ? "" : ", " + detail)
                     + (active ? ", " + playbackStateLabel(markedState, page == Page.RADIO) : ""));
         }
     }
@@ -641,7 +671,7 @@ public final class TvActivity extends Activity {
                 : (position + 1) + " / " + displayedRows.size());
         String action = switch (page) {
             case GAMES, SERIES -> "ОК Открыть треклист";
-            case RADIO, SEARCH, ALBUM -> "ОК Воспроизвести";
+            case RADIO, TRACKER, SEARCH, ALBUM -> "ОК Воспроизвести";
         };
         setText(listKeys, displayedRows.isEmpty() ? "→ К визуализации"
                 : "↑ ↓ Строка    " + action + "    → К визуализации");
@@ -687,6 +717,11 @@ public final class TvActivity extends Activity {
                 ? service.station : null;
     }
 
+    private SpaceTracker.Mode activeSpace(PlaybackService service) {
+        return page == Page.TRACKER && service != null && service.state != TransportState.ERROR
+                ? service.spaceMode : null;
+    }
+
     private int findTrack(PlaybackService.Entry entry) {
         if (entry == null || displayedTracks.isEmpty()) return -1;
         int position = displayedTracks.indexOf(entry);
@@ -718,6 +753,7 @@ public final class TvActivity extends Activity {
 
     private int markedRow() {
         if (markedStation != null) return displayedStations.indexOf(markedStation);
+        if (markedSpace != null) return SPACE_MODES.indexOf(markedSpace);
         if (page == Page.GAMES && markedEntry != null) {
             String id = markedEntry.game.optString("id");
             if (!id.isEmpty()) for (int i = 0; i < displayedRows.size(); i++) {
@@ -732,11 +768,16 @@ public final class TvActivity extends Activity {
         if (sceneCursor == null || !sceneButton.hasFocus()) syncDisplayedQueue(service);
         PlaybackService.Entry entry = activeTrack(service);
         RadioStations.Station station = activeStation(service);
+        SpaceTracker.Mode space = activeSpace(service);
         TransportState state = service == null ? TransportState.IDLE : service.state;
-        if (entry == markedEntry && java.util.Objects.equals(station, markedStation) && state == markedState) return;
+        long timingRevision = Library.STREAM_TIMING_REVISION.get();
+        if (entry == markedEntry && java.util.Objects.equals(station, markedStation) && space == markedSpace
+                && state == markedState && shownTimingRevision == timingRevision) return;
         markedEntry = entry;
         markedStation = station;
+        markedSpace = space;
         markedState = state;
+        shownTimingRevision = timingRevision;
         markedTrack = markedRow();
         renderVisibleRows();
         if (page == Page.ALBUM && markedTrack >= 0 && !list.hasFocus() && !sceneButton.hasFocus()) {
@@ -806,6 +847,22 @@ public final class TvActivity extends Activity {
         List<String> names = new ArrayList<>();
         for (RadioStations.Station station : stations) names.add(station.title());
         rows(names, i -> withService(service -> service.playRadio(stations.get(i)), true));
+    }
+
+    private void showTracker() {
+        request++;
+        page = Page.TRACKER;
+        updateNavigation();
+        searchButton.setEnabled(true);
+        heading.setText("Трекер · музыка космоса");
+        setMessage("Выбери режим и нажми ОК");
+        List<String> names = new ArrayList<>();
+        for (SpaceTracker.Mode mode : SPACE_MODES) names.add(mode.title);
+        rows(names, i -> withService(service -> {
+            SpaceTracker.Mode mode = SPACE_MODES.get(i);
+            if (service.spaceMode != mode || service.state == TransportState.ERROR) service.playSpace(mode);
+            else if (!service.state.wantsPlayback()) service.resume();
+        }, true));
     }
 
     private void showCatalog(Page target) { showCatalog(target, null); }
@@ -1169,6 +1226,92 @@ public final class TvActivity extends Activity {
         });
     }
 
+    private void chooseArrangement() {
+        boolean enabled = library.preferences.getBoolean(PlaybackService.ARRANGEMENT_MODE, false);
+        List<String> options = new ArrayList<>();
+        options.add((enabled ? "   " : "✓  ") + "Оригинал");
+        for (AmbientArrangement.Style style : AmbientArrangement.Style.values()) {
+            boolean selected = enabled && style == PlaybackService.arrangementStyle(library.preferences);
+            options.add((selected ? "✓  " : "   ") + "Трекер · " + style.title);
+        }
+        choices("Звучание всей очереди", options, index -> {
+            AmbientArrangement.Style style = index == 0 ? null : AmbientArrangement.Style.values()[index - 1];
+            if (index == 0 && !enabled || enabled && style == PlaybackService.arrangementStyle(library.preferences)) return;
+            var editor = library.preferences.edit().putBoolean(PlaybackService.ARRANGEMENT_MODE, style != null);
+            if (style != null) editor.putString(PlaybackService.ARRANGEMENT_STYLE, style.name());
+            editor.apply();
+            withService(service -> service.refreshArrangement(false), false);
+        });
+    }
+
+    private void chooseSpaceEffects() {
+        PlaybackService service = PlaybackService.instance;
+        if (service == null || service.spaceMode == null) return;
+        SpaceTracker.Mode mode = service.spaceMode;
+        boolean voyager = mode == SpaceTracker.Mode.VOYAGER;
+        if (mode == SpaceTracker.Mode.ORBITS) return;
+        boolean effects = library.preferences.getBoolean("space_effects", false);
+        String preference = voyager ? "voyager_effects" : "space_effects";
+        boolean enabled = voyager ? library.preferences.getBoolean(preference, effects) : effects;
+        boolean plasma = library.preferences.getBoolean("space_plasma", true);
+        List<String> labels = new ArrayList<>();
+        labels.add((enabled ? "✓  " : "   ") + "Шум и искажения");
+        if (voyager) labels.add((plasma ? "✓  " : "   ") + "Запись плазмы Voyager 1");
+        choices(mode.title, labels, index -> {
+            if (index == 0) {
+                library.preferences.edit().putBoolean(preference, !enabled).apply();
+                if (voyager) service.voyagerEffects(!enabled);
+                else service.spaceEffects(!enabled);
+            } else {
+                library.preferences.edit().putBoolean("space_plasma", !plasma).apply();
+                service.spacePlasma(!plasma);
+            }
+        });
+    }
+
+    private void sleepMenu() {
+        PlaybackService service = PlaybackService.instance;
+        if (service == null) return;
+        int step = PlaybackService.SLEEP_STEP_MINUTES;
+        long remaining = service.sleepRemaining();
+        long stepMillis = step * 60_000L;
+        int[] minutes = {remaining > 0 ? (int) ((remaining + stepMillis - 1) / stepMillis) * step : 15};
+        LinearLayout body = panelBody();
+        body.addView(terminalText(remaining > 0 ? "Осталось " + timeLabel(remaining + 999)
+                : "Остановить воспроизведение через", 16, palette.muted));
+        LinearLayout adjustment = new LinearLayout(this);
+        adjustment.setGravity(Gravity.CENTER_VERTICAL);
+        body.addView(adjustment);
+        Button less = terminalButton(adjustment, "−5 мин", () -> {}, 16);
+        TextView value = terminalText("", 20, palette.ink);
+        value.setGravity(Gravity.CENTER);
+        adjustment.addView(value, new LinearLayout.LayoutParams(0, -2, 1));
+        Button more = terminalButton(adjustment, "+5 мин", () -> {}, 16);
+        Runnable render = () -> {
+            setText(value, minutes[0] + " мин");
+            less.setEnabled(minutes[0] > step);
+            more.setEnabled(minutes[0] < PlaybackService.SLEEP_MAX_MINUTES);
+        };
+        less.setOnClickListener(view -> {
+            minutes[0] -= step;
+            render.run();
+            if (!less.isEnabled()) more.requestFocus();
+        });
+        more.setOnClickListener(view -> {
+            minutes[0] += step;
+            render.run();
+            if (!more.isEnabled()) less.requestFocus();
+        });
+        render.run();
+        AlertDialog.Builder dialog = new AlertDialog.Builder(this).setTitle("Таймер сна").setView(body)
+                .setNegativeButton("Назад", null).setPositiveButton(remaining > 0 ? "Перезапустить" : "Запустить",
+                        (d, index) -> withService(active -> active.sleepTimer(minutes[0]), false));
+        if (remaining > 0) dialog.setNeutralButton("Выключить",
+                (d, index) -> withService(active -> active.sleepTimer(0), false));
+        dialog.show();
+        less.requestFocus();
+    }
+
     private void showAnalysisIndex() {
         LinearLayout body = panelBody();
         TextView indexStatus = text("", 19, palette.ink);
@@ -1318,6 +1461,7 @@ public final class TvActivity extends Activity {
         buildScreen();
         switch (page) {
             case RADIO -> showRadio();
+            case TRACKER -> showTracker();
             case GAMES, SERIES, SEARCH -> showCatalog(page);
             case ALBUM -> {
                 PlaybackService service = PlaybackService.instance;
@@ -1645,7 +1789,7 @@ public final class TvActivity extends Activity {
         input.requestFocus();
         dialog.getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE);
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
-            if (!RadioStations.acceptsCode(input.getText().toString())) {
+            if (!RadioStations.acceptsCode(TvActivity.this, input.getText().toString())) {
                 input.setError("Неверный код");
                 return;
             }
@@ -1658,6 +1802,7 @@ public final class TvActivity extends Activity {
     private void updateNavigation() {
         Page section = page == Page.ALBUM ? albumParent : page;
         markNavigationTab(radioButton, section == Page.RADIO);
+        markNavigationTab(trackerButton, section == Page.TRACKER);
         markNavigationTab(gamesButton, section == Page.GAMES);
         markNavigationTab(seriesButton, section == Page.SERIES);
         markNavigationTab(searchButton, section == Page.SEARCH);
@@ -1751,7 +1896,7 @@ public final class TvActivity extends Activity {
     private void updateHint() {
         if (!visual || hint.getVisibility() != View.VISIBLE) return;
         PlaybackService service = PlaybackService.instance;
-        boolean hasMusic = service != null && (service.station != null || service.currentEntry() != null);
+        boolean hasMusic = service != null && (service.station != null || service.currentEntry() != null || service.spaceMode != null);
         boolean next = hasMusic && service.canNext();
         String guide = "← → Смена сцены   ·   ↑ Список сцен   ·   Назад к списку";
         if (hasMusic) guide += service.state.wantsPlayback() ? "   ·   ОК Пауза" : "   ·   ОК Играть";
@@ -1826,7 +1971,7 @@ public final class TvActivity extends Activity {
             if (!stageActive) return;
             PlaybackService service = PlaybackService.instance;
             boolean playing = service != null && service.state == TransportState.PLAYING;
-            boolean demo = service == null || service.station == null && service.currentEntry() == null
+            boolean demo = service == null || service.station == null && service.currentEntry() == null && service.spaceMode == null
                     || service.state == TransportState.ENDED;
             fractal.frame(playing || demo, playing ? service.audioEnergy.levels() : AudioEnergy.SILENCE);
             main.postDelayed(this, 33);
@@ -1837,15 +1982,22 @@ public final class TvActivity extends Activity {
 
     private void updateTimeline(PlaybackService service) {
         boolean track = service != null && service.station == null && service.currentEntry() != null;
-        trackTime.setVisibility(track ? View.VISIBLE : View.GONE);
+        boolean generated = service != null && service.spaceMode != null;
+        trackTime.setVisibility(track || generated ? View.VISIBLE : View.GONE);
         trackDuration.setVisibility(track && service.durationKnown ? View.VISIBLE : View.GONE);
         seek.setVisibility(track && service.duration > 0 ? View.VISIBLE : View.GONE);
-        seek.setEnabled(track && service.seekAvailable());
-        if (!track) return;
+        seek.setEnabled(track && (service.seekAvailable() || service.state == TransportState.LOADING
+                || service.state == TransportState.LOADING_PAUSED));
+        if (!track) {
+            if (generated) setText(trackTime, timeLabel(service.currentPosition()) + " · " + service.spaceTempo() + " BPM");
+            return;
+        }
         long position = service.currentPosition();
         long duration = service.duration;
         setText(trackTime, timeLabel(position));
-        setText(trackDuration, service.durationKnown ? timeLabel(duration) : "");
+        setText(trackDuration, service.durationKnown ? timeLabel(duration)
+                + (service.durationLoop && service.activeArrangement == null && (!service.arrangementEnabled()
+                || service.arrangementFallback) ? " ↻" : "") : "");
         int seconds = duration > 0 ? (int) Math.min(Integer.MAX_VALUE, 1 + (duration - 1) / 1000) : 0;
         if (seek.getMax() != seconds) {
             seek.setMax(seconds);
@@ -1857,6 +2009,13 @@ public final class TvActivity extends Activity {
     private static String timeLabel(long millis) {
         long seconds = Math.max(0, millis / 1000);
         return String.format(Locale.ROOT, "%d:%02d", seconds / 60, seconds % 60);
+    }
+
+    private String rowDuration(JSONObject track, boolean active) {
+        PlaybackService service = active ? PlaybackService.instance : null;
+        if (service != null && service.activeArrangement != null && service.durationKnown)
+            return timeLabel(service.duration);
+        return timeLabel(library.displayDuration(track)) + (library.looping(track) ? " ↻" : "");
     }
 
     private static String playbackStateLabel(TransportState state, boolean radio) {
@@ -1875,9 +2034,27 @@ public final class TvActivity extends Activity {
         boolean radio = service != null && service.station != null;
         PlaybackService.Entry entry = service == null ? null : service.currentEntry();
         boolean gameTrack = entry != null;
-        spectrumView.setVisibility(gameTrack || radio ? View.VISIBLE : View.GONE);
+        boolean generated = service != null && service.spaceMode != null;
+        boolean orbits = generated && service.spaceMode == SpaceTracker.Mode.ORBITS;
+        boolean active = gameTrack || radio || generated;
+        spectrumView.setVisibility(active ? View.VISIBLE : View.GONE);
+        ViewGroup.LayoutParams spectrumSize = spectrumView.getLayoutParams();
+        int spectrumHeight = dp(orbits || gameTrack ? 60 : 110);
+        if (spectrumSize.height != spectrumHeight) {
+            spectrumSize.height = spectrumHeight;
+            spectrumView.setLayoutParams(spectrumSize);
+        }
         spectrumView.invalidate();
-        trackControls.setVisibility(gameTrack || radio ? View.VISIBLE : View.GONE);
+        trackControls.setVisibility(active ? View.VISIBLE : View.GONE);
+        playerOptions.setVisibility(active ? View.VISIBLE : View.GONE);
+        arrangementButton.setVisibility(gameTrack ? View.VISIBLE : View.GONE);
+        spaceOptionsButton.setVisibility(generated && !orbits ? View.VISIBLE : View.GONE);
+        orbitInfo.setVisibility(orbits ? View.VISIBLE : View.GONE);
+        if (orbits) setText(orbitInfo, service.orbitStatus());
+        if (gameTrack) setText(arrangementButton, service.arrangementEnabled()
+                ? "Трекер · " + PlaybackService.arrangementStyle(library.preferences).title : "Оригинал");
+        long remaining = active ? service.sleepRemaining() : 0;
+        setText(sleepButton, remaining > 0 ? "Таймер " + timeLabel(remaining + 999) : "Таймер сна");
         previousButton.setVisibility(gameTrack ? View.VISIBLE : View.GONE);
         nextButton.setVisibility(gameTrack ? View.VISIBLE : View.GONE);
         continuationButton.setVisibility(gameTrack ? View.VISIBLE : View.GONE);
@@ -1886,28 +2063,34 @@ public final class TvActivity extends Activity {
         boolean continuing = service != null && service.state == TransportState.CONTINUING;
         nextButton.setEnabled(continuing || service != null && service.canNext());
         setText(nextButton, continuing ? "Ищу следующий…" : "Следующий");
-        playButton.setVisibility(radio || gameTrack ? View.VISIBLE : View.GONE);
-        playButton.setEnabled(radio || gameTrack);
+        playButton.setVisibility(active ? View.VISIBLE : View.GONE);
+        playButton.setEnabled(active);
         String playLabel = service != null && service.state.wantsPlayback()
                 ? (radio ? "Остановить" : "Пауза")
-                : radio && service.state == TransportState.ERROR ? "Повторить" : "Играть";
+                : active && service.state == TransportState.ERROR ? "Повторить" : "Играть";
         setText(playButton, playLabel);
 
-        playingContext.setVisibility(gameTrack ? View.VISIBLE : View.GONE);
+        playingContext.setVisibility(gameTrack || generated ? View.VISIBLE : View.GONE);
         String platform = gameTrack ? terminalPlatform(entry.game) : "";
+        if (gameTrack && service.activeArrangement != null) platform += " · " + service.activeArrangement.title;
+        if (gameTrack && service.arrangementFallback) platform += " · звучит оригинал";
         playingPlatform.setVisibility(platform.isEmpty() ? View.GONE : View.VISIBLE);
         if (service == null) {
-            setText(transport, page == Page.RADIO ? "Выберите станцию" : "Выберите композицию");
+            setText(transport, page == Page.RADIO ? "Выберите станцию"
+                    : page == Page.TRACKER ? "Выберите режим" : "Выберите композицию");
             setText(playingState, "ПЛЕЕР");
             return;
         }
         String state = service.error.isEmpty() ? playbackStateLabel(service.state, radio) : service.error;
+        if (service.sleepExpired) state = "Остановлено по таймеру";
+        else if (gameTrack && service.arrangementEnabled() && service.state == TransportState.LOADING)
+            state = "Создаю аранжировку";
         setText(transport, service.identity.snapshot().title);
         setText(playingState, state.isEmpty() ? "ПЛЕЕР" : state);
         if (gameTrack) {
             setText(playingContext, service.gameTitle);
             setText(playingPlatform, platform);
-        }
+        } else if (generated) setText(playingContext, service.spaceMode.source);
     }
 
     private final Runnable refresh = new Runnable() {
@@ -1957,7 +2140,7 @@ public final class TvActivity extends Activity {
                 }, false);
                 case KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
                     PlaybackService service = PlaybackService.instance;
-                    if (service != null && (service.station != null || service.currentEntry() != null)) service.toggle();
+                    if (service != null && (service.station != null || service.currentEntry() != null || service.spaceMode != null)) service.toggle();
                     else chooseScene();
                     updateHint();
                 }
@@ -1965,8 +2148,8 @@ public final class TvActivity extends Activity {
                 case KeyEvent.KEYCODE_MEDIA_PAUSE -> withService(PlaybackService::pause, false);
                 case KeyEvent.KEYCODE_MEDIA_PREVIOUS -> withService(PlaybackService::previous, false);
                 case KeyEvent.KEYCODE_MEDIA_NEXT -> withService(PlaybackService::next, false);
-                case KeyEvent.KEYCODE_MEDIA_REWIND -> withService(service -> service.seek(service.currentPosition() - 10_000), false);
-                case KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> withService(service -> service.seek(service.currentPosition() + 10_000), false);
+                case KeyEvent.KEYCODE_MEDIA_REWIND -> withService(service -> service.seekRelative(-10_000), false);
+                case KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> withService(service -> service.seekRelative(10_000), false);
                 default -> withService(PlaybackService::toggle, false);
             }
         }

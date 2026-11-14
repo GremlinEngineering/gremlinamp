@@ -27,22 +27,99 @@ public class PlaybackService extends Service {
  SpaceTracker.Mode spaceMode;
  private SpaceSensors spaceSensors;
  private volatile SpaceTracker.Street street=SpaceTracker.Street.QUIET;
- private boolean spaceMotionEnabled=true;
+ private volatile boolean spaceMotionEnabled=true;
  void street(SpaceTracker.Street input){street=input;}
- void spaceMotionEnabled(boolean enabled){spaceMotionEnabled=enabled;updateSpaceSensors();}
  private void updateSpaceSensors(){
-  boolean active=spaceMode!=null&&spaceMode!=SpaceTracker.Mode.ORBITS&&spaceMotionEnabled&&state.wantsPlayback();
+  boolean active=state.wantsPlayback()&&(spaceMode!=null&&spaceMode.usesMotion()&&spaceMotionEnabled
+    ||activeArrangement!=null&&arrangementWalking);
   if(spaceSensors==null&&active)spaceSensors=new SpaceSensors(this,this::spaceMotion);
   if(spaceSensors!=null)spaceSensors.setActive(active);
  }
 
  private volatile SpaceTracker.Motion spaceMotion=SpaceTracker.Motion.STILL;
+ static final String ARRANGEMENT_MODE="arrangement_enabled", ARRANGEMENT_STYLE="arrangement_style",
+   ARRANGEMENT_LENGTH="arrangement_length", ARRANGEMENT_WALK="arrangement_walk";
+ private record ArrangementOptions(AmbientArrangement.Style style,AmbientArrangement.Length length,int variant){}
+ private record CachedTheme(String key,AmbientAnalysis.Theme theme){}
+ private volatile CachedTheme cachedTheme;
+ private volatile boolean arrangementWalking;
+ private int arrangementVariant;
+ AmbientArrangement.Style activeArrangement;
+ boolean arrangementFallback;
+ String arrangementProblem="";
+
+ static AmbientArrangement.Style arrangementStyle(android.content.SharedPreferences p){
+  try{return AmbientArrangement.Style.valueOf(p.getString(ARRANGEMENT_STYLE,"AUTO"));}
+  catch(IllegalArgumentException invalid){return AmbientArrangement.Style.AUTO;}
+ }
+ static AmbientArrangement.Length arrangementLength(android.content.SharedPreferences p){
+  try{return AmbientArrangement.Length.valueOf(p.getString(ARRANGEMENT_LENGTH,"NORMAL"));}
+  catch(IllegalArgumentException invalid){return AmbientArrangement.Length.NORMAL;}
+ }
+ boolean arrangementEnabled(){return library.preferences.getBoolean(ARRANGEMENT_MODE,false);}
+ void refreshArrangement(boolean variation){
+  if(currentEntry()==null||state==CONTINUING||state==ENDED)return;
+  if(variation)arrangementVariant++;
+  long at=currentPosition();
+  long oldDuration=durationKnown?duration:0;
+  if(state==LOADING||state==LOADING_PAUSED){
+   SeekRequest pending=seekRequest.get();
+   if(pending!=null&&pending.generation()==generation){at=pending.target();oldDuration=pending.reference();}
+  }
+  start(position,at,oldDuration,!state.wantsPlayback());
+ }
+ void arrangementWalking(boolean enabled){
+  arrangementWalking=enabled;
+  updateSpaceSensors();
+ }
  private volatile boolean spaceEffects, voyagerEffects, spacePlasma;
  private volatile OrbitData orbitData;
  private ExecutorService orbitIo;
  private Future<?> orbitWork;
  private long nextOrbitRefresh;
  private final Runnable refreshOrbits=this::updateOrbits;
+ private TeahouseWeather teahouseWeather;
+ private ExecutorService weatherIo;
+ private Future<?> weatherWork;
+ private long nextWeatherRefresh;
+ private final Runnable refreshWeather=this::updateWeather;
+ static final int SLEEP_STEP_MINUTES=5, SLEEP_MAX_MINUTES=720;
+ private volatile long sleepDeadline;
+ private PowerManager.WakeLock sleepWake;
+ boolean sleepExpired;
+ private final Runnable sleepAlarm=this::checkSleepTimer;
+
+ long sleepRemaining(){return Math.max(0,sleepDeadline-SystemClock.elapsedRealtime());}
+ void sleepTimer(int minutes){
+  if(destroyed)return;
+  main.removeCallbacks(sleepAlarm);
+  releaseSleepWake();
+  sleepExpired=false;
+  int duration=Math.min(SLEEP_MAX_MINUTES,Math.max(0,minutes));
+  sleepDeadline=duration==0?0:SystemClock.elapsedRealtime()+duration*60_000L;
+  checkSleepTimer();
+ }
+ private void checkSleepTimer(){
+  if(sleepDeadline==0||destroyed)return;
+  long remaining=sleepRemaining();
+  if(remaining>0){
+   if(state.wantsPlayback()){
+    if(sleepWake==null)
+     sleepWake=((PowerManager)getSystemService(POWER_SERVICE)).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK,"GremlinAmp:SleepTimer");
+    if(!sleepWake.isHeld())sleepWake.acquire(remaining+1_000L);
+   }
+   main.removeCallbacks(sleepAlarm);
+   main.postDelayed(sleepAlarm,remaining);
+   return;
+  }
+  sleepDeadline=0;
+  releaseSleepWake();
+  sleepExpired=state.wantsPlayback();
+  if(sleepExpired)pause();
+ }
+ private void releaseSleepWake(){
+  if(sleepWake!=null&&sleepWake.isHeld())sleepWake.release();
+ }
  private volatile int spaceTempo;
  int spaceTempo(){return spaceTempo;}
  void spaceMotion(SpaceTracker.Motion motion){spaceMotion=motion;}
@@ -52,7 +129,8 @@ public class PlaybackService extends Service {
 
  private void updateOrbits(){
   main.removeCallbacks(refreshOrbits);
-  if(destroyed||spaceMode!=SpaceTracker.Mode.ORBITS||!state.wantsPlayback())return;
+  if(destroyed||spaceMode!=SpaceTracker.Mode.ORBITS||!state.wantsPlayback()
+    ||!library.streaming&&!TrackerPreferences.refresh(library.preferences,spaceMode))return;
   long now=SystemClock.elapsedRealtime();
   long delay=nextOrbitRefresh-now;
   if(delay<=0){
@@ -68,7 +146,54 @@ public class PlaybackService extends Service {
   main.postDelayed(refreshOrbits,delay);
  }
  String orbitStatus(){
-  return orbitData==null?"Загружаю архив":orbitData.describe(java.time.Instant.now().getEpochSecond(),library.networkAllowed());
+  boolean online=(library.streaming||TrackerPreferences.refresh(library.preferences,SpaceTracker.Mode.ORBITS))&&library.networkAllowed();
+  return orbitData==null?"Загружаю архив":orbitData.describe(java.time.Instant.now().getEpochSecond(),online);
+ }
+ private void updateWeather(){
+  main.removeCallbacks(refreshWeather);
+  if(destroyed||spaceMode!=SpaceTracker.Mode.WEATHER||!state.wantsPlayback()
+    ||!TrackerPreferences.refresh(library.preferences,spaceMode))return;
+  long now=SystemClock.elapsedRealtime(), delay=nextWeatherRefresh-now;
+  if(delay<=0){
+   delay=15_000;
+   if(library.networkAllowed()&&(weatherWork==null||weatherWork.isDone())){
+    if(weatherIo==null)weatherIo=Executors.newSingleThreadExecutor();
+    TeahouseWeather source=teahouseWeather;
+    weatherWork=weatherIo.submit(()->{
+     try{if(library.networkAllowed())source.refresh();}
+     catch(Exception failure){android.util.Log.d("GremlinAmp", "Teahouse weather refresh", failure);}
+    });
+    delay=TeahouseWeather.REFRESH_MILLIS;
+    nextWeatherRefresh=now+delay;
+   }
+  }
+  main.postDelayed(refreshWeather,delay);
+ }
+ String weatherStatus(){return teahouseWeather.description();}
+
+ void refreshTrackerOptions(SpaceTracker.Mode mode){
+  if(library.streaming||spaceMode!=mode)return;
+  loadPhoneTrackerOptions(mode);
+  if(!spaceMotionEnabled)spaceMotion=SpaceTracker.Motion.STILL;
+  updateSpaceSensors();
+ }
+ void trackerNetworkChanged(SpaceTracker.Mode mode){
+  if(library.streaming||spaceMode!=mode)return;
+  if(mode==SpaceTracker.Mode.ORBITS){
+   if(orbitWork!=null){orbitWork.cancel(true);orbitWork=null;}
+   nextOrbitRefresh=0;
+   updateOrbits();
+  }else if(mode==SpaceTracker.Mode.WEATHER){
+   if(weatherWork!=null){weatherWork.cancel(true);weatherWork=null;}
+   nextWeatherRefresh=0;
+   updateWeather();
+  }
+ }
+ private void loadPhoneTrackerOptions(SpaceTracker.Mode mode){
+  spaceMotionEnabled=TrackerPreferences.motion(library.preferences,mode);
+  spaceEffects=TrackerPreferences.noise(library.preferences,mode);
+  voyagerEffects=TrackerPreferences.noise(library.preferences,SpaceTracker.Mode.VOYAGER);
+  spacePlasma=TrackerPreferences.plasma(library.preferences);
  }
 
  private Bitmap albumArt;
@@ -88,9 +213,10 @@ public class PlaybackService extends Service {
  private Future<?> continuationWork;
  final ExecutorService executor=Executors.newSingleThreadExecutor();final Handler main=new Handler(Looper.getMainLooper());
  volatile List<Entry> queue=Collections.emptyList();volatile int position;volatile int generation;volatile String title="Готов к музыке",error="";volatile long elapsed;
- private record SeekRequest(int generation,long target) {}
+ private record SeekRequest(int generation,long target,long reference) {}
  private final java.util.concurrent.atomic.AtomicReference<SeekRequest> seekRequest=new java.util.concurrent.atomic.AtomicReference<>();
  volatile TransportState state=IDLE;volatile long duration;volatile boolean durationKnown;boolean mediaReady;volatile boolean destroyed;volatile String artworkPath="";volatile String gameTitle="";
+ boolean durationLoop;
  volatile boolean shuffle,repeat,repeatCollection;MediaPlayer media;MediaSession session;AudioManager am;AudioFocusRequest focus;Library library;long handle;Future<?> work;
  public IBinder onBind(Intent i){return null;}
  public void onCreate(){super.onCreate();instance=this;library=new Library(this,getPackageName().endsWith(".tv"));if(library.streaming)preloadIo=Executors.newSingleThreadExecutor();shuffle=library.preferences.getBoolean("shuffle",false);repeat=library.preferences.getBoolean("repeat",false);repeatCollection=library.preferences.getBoolean("loop",false);am=(AudioManager)getSystemService(AUDIO_SERVICE);
@@ -107,7 +233,7 @@ public class PlaybackService extends Service {
   Intent open=new Intent(this,MainActivity.class);
   if(library.streaming)open.setClassName(this,"ru.oopssre.gremlinamp.TvActivity");
   Notification.Builder builder=new Notification.Builder(this,"play").setSmallIcon(android.R.drawable.ic_media_play)
-   .setContentTitle(title).setContentText(error.isEmpty()?(spaceMode!=null?"Трекерный эмбиент":station==null?"Музыка Аркадного зала":"Интернет-радио"):error)
+   .setContentTitle(title).setContentText(error.isEmpty()?(spaceMode!=null?spaceMode.source:station==null?"Музыка Аркадного зала":"Интернет-радио"):error)
    .setContentIntent(PendingIntent.getActivity(this,0,open,PendingIntent.FLAG_IMMUTABLE))
    .setOnlyAlertOnce(true);
   Notification.MediaStyle style=new Notification.MediaStyle().setMediaSession(session.getSessionToken());
@@ -135,8 +261,11 @@ public class PlaybackService extends Service {
  }
  void announce(){main.post(()->{
   if(destroyed)return;
+  if(sleepDeadline!=0&&!state.wantsPlayback())releaseSleepWake();
+  else if(sleepDeadline!=0)checkSleepTimer();
   updateSpaceSensors();
   updateOrbits();
+  updateWeather();
   long actions=PlaybackState.ACTION_STOP;
   if(station!=null||spaceMode!=null||!queue.isEmpty())actions|=state.wantsPlayback()?PlaybackState.ACTION_PAUSE:PlaybackState.ACTION_PLAY;
   if(!queue.isEmpty())actions|=PlaybackState.ACTION_SKIP_TO_PREVIOUS;
@@ -163,6 +292,8 @@ public class PlaybackService extends Service {
    error="Не удалось получить аудиофокус";state=state.on(Event.FAIL);announce();return;
   }
   generation++;previewRequest++;int token=generation;
+  sleepExpired=false;
+  activeArrangement=null;arrangementFallback=false;arrangementProblem="";
   cancelContinuation();
   clearStreamCache();
   if(work!=null)work.cancel(true);
@@ -170,7 +301,7 @@ public class PlaybackService extends Service {
   library.cancelTransfers();releaseMedia();
   queue=Collections.emptyList();history.clear();pendingResume=-1;completionPending=false;nextGame="";artworkPath="";
   spaceMode=null;spaceMotion=SpaceTracker.Motion.STILL;spaceTempo=0;
-  audioEnergy.reset();station=chosen;position=0;elapsed=0;duration=0;durationKnown=false;seekRequest.set(null);error="";state=state.on(Event.LOAD);
+  audioEnergy.reset();station=chosen;position=0;elapsed=0;duration=0;durationKnown=false;durationLoop=false;seekRequest.set(null);error="";state=state.on(Event.LOAD);
   title=chosen.title();gameTitle="Интернет-радио";artist="";albumArt=null;identity.begin(token,title,gameTitle);
   publishMetadata();
   announce();
@@ -183,12 +314,14 @@ public class PlaybackService extends Service {
   });
  }
  void playSpace(SpaceTracker.Mode mode){
-  if(destroyed||library.streaming)return;
+  if(destroyed||library.streaming&&mode.phoneOnly())return;
   if(am.requestAudioFocus(focus)!=AudioManager.AUDIOFOCUS_REQUEST_GRANTED){
    if(state.wantsPlayback())return;
    error="Не удалось получить аудиофокус";state=ERROR;announce();return;
   }
   int token=++generation;
+  sleepExpired=false;
+  activeArrangement=null;arrangementFallback=false;arrangementProblem="";
   previewRequest++;cancelContinuation();clearStreamCache();
   if(work!=null)work.cancel(true);
   if(artworkWork!=null)artworkWork.cancel(true);
@@ -198,15 +331,28 @@ public class PlaybackService extends Service {
   spaceEffects=library.preferences.getBoolean("space_effects",false);
   voyagerEffects=library.preferences.getBoolean("voyager_effects",spaceEffects);
   spacePlasma=library.preferences.getBoolean("space_plasma",true);
-  spaceMotionEnabled=library.preferences.getBoolean("space_motion",true);street=SpaceTracker.Street.QUIET;
-  position=0;elapsed=0;duration=0;durationKnown=false;seekRequest.set(null);error="";state=state.on(Event.LOAD);
+  spaceMotionEnabled=false;
+  if(!library.streaming)loadPhoneTrackerOptions(mode);
+  street=SpaceTracker.Street.QUIET;
+  position=0;elapsed=0;duration=0;durationKnown=false;durationLoop=false;seekRequest.set(null);error="";state=state.on(Event.LOAD);
   if(mode==SpaceTracker.Mode.ORBITS&&orbitData==null)
    orbitData=new OrbitData(getFilesDir(),()->spaceAsset("orbits.json",32768));
   OrbitData orbits=mode==SpaceTracker.Mode.ORBITS?orbitData:null;
-  title=mode.title;gameTitle=mode.source;artist="Музыка космоса и города";albumArt=null;
+  if(mode==SpaceTracker.Mode.WEATHER&&teahouseWeather==null)
+   teahouseWeather=new TeahouseWeather(library.preferences);
+  TeahouseWeather weather=mode==SpaceTracker.Mode.WEATHER?teahouseWeather:null;
+  title=mode.title;gameTitle=mode.source;artist=mode.earth!=null?"GremlinAmp · Генератор":library.streaming?"Музыка космоса":"Музыка космоса и города";albumArt=null;
   identity.begin(token,title,gameTitle);publishMetadata();announce();
   work=executor.submit(()->{
    try{
+    if(mode.earth!=null){
+     if(weather!=null&&weather.sound()==EarthTracker.Weather.UNKNOWN){
+      try{weather.accept(new JSONObject(new String(spaceAsset("teahouse-weather.json",4096),java.nio.charset.StandardCharsets.UTF_8)));}
+      catch(Exception failure){android.util.Log.w("GremlinAmp", "Bundled teahouse weather", failure);}
+     }
+     renderPcm(null,token,()->new EarthPcm(mode,weather));
+     return;
+    }
     byte[] data=mode.asset.isEmpty()?new byte[0]:spaceProfile(mode.asset);
     if(orbits!=null)orbits.load();
     short[] plasma=new short[0];
@@ -225,6 +371,33 @@ public class PlaybackService extends Service {
     });
    }
   });
+ }
+ private final class EarthPcm implements PcmSource {
+  private final EarthTracker tracker;
+  private final TeahouseWeather weather;
+  private final String clockKey, shiftingKey;
+  private long nextClock;
+  private int localMinute;
+  EarthPcm(SpaceTracker.Mode mode,TeahouseWeather weather){
+   tracker=new EarthTracker(mode.earth,new Random().nextLong());
+   this.weather=weather;
+   clockKey=TrackerPreferences.key(mode,"clock");
+   shiftingKey=TrackerPreferences.key(mode,"shifting_accents");
+  }
+  public int sampleRate(){return EarthTracker.RATE;}
+  public int render(short[] pcm,int frames){
+   long now=SystemClock.elapsedRealtime();
+   if(now>=nextClock){
+    java.time.LocalTime time=java.time.LocalTime.now();
+    localMinute=time.getHour()*60+time.getMinute();
+    nextClock=now+5_000;
+   }
+   boolean clock=library.preferences.getBoolean(clockKey,true);
+   boolean shifting=library.preferences.getBoolean(shiftingKey,true);
+   tracker.render(pcm,frames,clock?localMinute:0,weather==null?EarthTracker.Weather.UNKNOWN:weather.sound(),shifting);
+   spaceTempo=tracker.tempo();
+   return frames;
+  }
  }
  private byte[] spaceAsset(String name,int limit)throws IOException{
   try(InputStream input=getAssets().open("space/"+name)){
@@ -272,7 +445,7 @@ public class PlaybackService extends Service {
     case STARS,SOLAR -> spaceEffects;
     default -> false;
    };
-   tracker.render(pcm,frames,mode==SpaceTracker.Mode.ORBITS?SpaceTracker.Motion.STILL:spaceMotion,street,effects,spacePlasma);
+   tracker.render(pcm,frames,mode==SpaceTracker.Mode.ORBITS||!spaceMotionEnabled?SpaceTracker.Motion.STILL:spaceMotion,street,effects,spacePlasma);
    spaceTempo=tracker.tempo();return frames;
   }
  }
@@ -304,15 +477,25 @@ public class PlaybackService extends Service {
   start(index);
  }
  synchronized void start(int index){
+  start(index,0,0,false);
+ }
+ private synchronized void start(int index,long initialMs,long referenceMs,boolean paused){
   if(index<0||index>=queue.size())return;
+  sleepExpired=false;
   generation++;int token=generation;
   cancelPreload();
   if(work!=null)work.cancel(true);
   library.cancelTransfers();releaseMedia();
-  audioEnergy.reset();position=index;pendingResume=-1;completionPending=false;elapsed=0;seekRequest.set(null);error="";state=state.on(Event.LOAD);artworkPath="";
+  audioEnergy.reset();position=index;pendingResume=-1;completionPending=false;elapsed=0;error="";state=paused?LOADING_PAUSED:LOADING;artworkPath="";
+  seekRequest.set(initialMs>0?new SeekRequest(token,initialMs,referenceMs):null);
+  activeArrangement=null;arrangementFallback=false;arrangementProblem="";
+  ArrangementOptions arrangement=arrangementEnabled()?new ArrangementOptions(arrangementStyle(library.preferences),
+    arrangementLength(library.preferences),arrangementVariant):null;
+  arrangementWalking=!library.streaming&&arrangement!=null&&library.preferences.getBoolean(ARRANGEMENT_WALK,false);
   Entry e=queue.get(index);playedTracks.add(index);previewNext(e.game,token);JSONObject t=e.manifest.optJSONArray("tracks").optJSONObject(e.index);title=t.optString("title");gameTitle=e.game.optString("title");artist=t.optString("artist");albumArt=null;identity.begin(token,title,e.seriesTitle.isEmpty()?gameTitle:e.seriesTitle+" · "+gameTitle);duration=library.displayDuration(t);durationKnown=duration>=0;publishMetadata();announce();
+  durationLoop=library.looping(t);
   if(library.hiddenShort(t)){main.post(()->skipUnavailable(token,"Композиция скрыта фильтром"));return;}
-  if(am.requestAudioFocus(focus)!=AudioManager.AUDIOFOCUS_REQUEST_GRANTED){
+  if(!paused&&am.requestAudioFocus(focus)!=AudioManager.AUDIOFOCUS_REQUEST_GRANTED){
    error="Не удалось получить аудиофокус";state=state.on(Event.FAIL);announce();return;
   }
   if(!library.streaming)loadArtwork(e,token);
@@ -322,7 +505,9 @@ public class PlaybackService extends Service {
     if(decoder.isEmpty())throw new IOException(MusicContract.unsupported(t));
     if(library.streaming){
      try(StreamCache.Track lease=streamCache.track(true)){
-      if(token==generation)renderPcm(t,token,()->new ChipDecoder(decoder,library.streamInputs(e.manifest,t,decoder,lease),t));
+      Library.StreamInputs inputs=library.streamInputs(e.manifest,t,decoder,lease);
+      if(token==generation)playPcmTrack(t,token,arrangement,decoder,inputs.descriptor(),
+        ()->new ChipDecoder(decoder,inputs,t));
      }
      return;
     }
@@ -331,14 +516,56 @@ public class PlaybackService extends Service {
     JSONObject descriptor=MusicContract.decoderNeedsInputs(decoder)?library.decoderInput(e.manifest,t,files):null;
     File file=descriptor==null?library.fetch(e.manifest,library.playbackAsset(t)):files.get(0);
     if(token!=generation)return;
-    if(decoder.equals("media"))main.post(()->mediaPlay(file,token));
-    else nativePlay(file,t,decoder,files,descriptor,token);
+    if(decoder.equals("media")){
+     if(!renderArrangement(t,token,arrangement,decoder,descriptor,()->new MediaAnalysisPcm(file)))
+      main.post(()->mediaPlay(file,t,token));
+    }else if(arrangement==null)nativePlay(file,t,decoder,files,descriptor,token);
+    else playPcmTrack(t,token,arrangement,decoder,descriptor,()->openChip(file,t,decoder,files,descriptor));
    }catch(Exception ex){
     if(token==generation&&!Thread.currentThread().isInterrupted()){
      String failure=String.valueOf(ex.getMessage());main.post(()->skipUnavailable(token,failure));
     }
    }
   });
+ }
+ private void playPcmTrack(JSONObject track,int token,ArrangementOptions options,String engine,
+                           JSONObject descriptor,DecoderFactory original)throws Exception{
+  if(!renderArrangement(track,token,options,engine,descriptor,original))renderPcm(track,token,original);
+ }
+ private boolean renderArrangement(JSONObject track,int token,ArrangementOptions options,String engine,
+                                   JSONObject descriptor,DecoderFactory original)throws Exception{
+  if(options==null)return token!=generation;
+  AmbientArrangement result;
+  try{result=arrange(track,engine,descriptor,options,original);}
+  catch(Exception analysisFailure){
+   AmbientAnalysis.checkInterrupted();
+   String reason=analysisFailure.getMessage();
+   main.post(()->{if(token==generation&&!destroyed){
+    arrangementFallback=true;
+    arrangementProblem=reason==null?"Аранжировка недоступна":reason;
+    announce();
+   }});
+   return token!=generation;
+  }
+  if(token==generation)renderPcm(track,token,()->result);
+  return true;
+ }
+ private AmbientArrangement arrange(JSONObject track,String engine,JSONObject descriptor,
+                                    ArrangementOptions options,DecoderFactory original)throws Exception{
+  JSONObject asset=library.playbackAsset(track);
+  String key=asset.optString("sha256")+":"+track.optInt("subsong")+":"+track.optLong("play_ms",-1)
+    +":"+engine+":"+Objects.toString(descriptor,"");
+  CachedTheme cached=cachedTheme;
+  AmbientAnalysis.Theme theme;
+  if(cached!=null&&cached.key.equals(key))theme=cached.theme;
+  else{
+   try(PcmSource source=original.open()){
+    theme=AmbientAnalysis.read(source,track.optLong("play_ms",-1),key.hashCode());
+   }
+   cachedTheme=new CachedTheme(key,theme);
+  }
+  return new AmbientArrangement(theme,options.style,options.length,options.variant,
+    ()->arrangementWalking?spaceMotion:SpaceTracker.Motion.STILL);
  }
  void clearStreamCache(){
   preloadEnabled=false;
@@ -420,7 +647,7 @@ public class PlaybackService extends Service {
   else if(state==PLAYING)advance(true);
  }
  void releaseMedia(){mediaReady=false;MediaPlayer old=media;media=null;if(old!=null){old.setOnPreparedListener(null);old.setOnCompletionListener(null);old.setOnErrorListener(null);old.release();}}
- void mediaPlay(File file,int token){
+ void mediaPlay(File file,JSONObject track,int token){
   if(token!=generation||destroyed)return;
   try{
    media=new MediaPlayer();MediaPlayer p=media;
@@ -430,6 +657,13 @@ public class PlaybackService extends Service {
     if(token!=generation||media!=v)return;
     try{
      mediaReady=true;duration=v.getDuration();durationKnown=duration>=0;
+     if(durationKnown){
+      long decoded=duration;
+      artworkIo.submit(()->library.recordDecoderDuration(track,decoded));
+     }
+     SeekRequest initial=seekRequest.get();
+     if(initial!=null&&initial.generation()==token&&seekRequest.compareAndSet(initial,null))
+      v.seekTo((int)seekTarget(initial,duration));
      if(state==LOADING)v.start();
      ready(token);
     }catch(RuntimeException e){skipUnavailable(token,String.valueOf(e.getMessage()));}
@@ -440,8 +674,10 @@ public class PlaybackService extends Service {
   }catch(Exception ex){skipUnavailable(token,String.valueOf(ex.getMessage()));}
  }
  void nativePlay(File file,JSONObject track,String engine,List<File> files,JSONObject descriptor,int token)throws Exception {
-  renderPcm(track,token,()->descriptor==null?new ChipDecoder(engine,file,track)
-    :new ChipDecoder(engine,readDecoderFiles(files,descriptor),track));
+  renderPcm(track,token,()->openChip(file,track,engine,files,descriptor));
+ }
+ private PcmSource openChip(File file,JSONObject track,String engine,List<File> files,JSONObject descriptor)throws Exception{
+  return descriptor==null?new ChipDecoder(engine,file,track):new ChipDecoder(engine,readDecoderFiles(files,descriptor),track);
  }
  private Library.StreamInputs readDecoderFiles(List<File> files,JSONObject descriptor)throws IOException {
   List<byte[]> buffers=new ArrayList<>(files.size());
@@ -460,6 +696,7 @@ public class PlaybackService extends Service {
   PowerManager.WakeLock wake=((PowerManager)getSystemService(POWER_SERVICE)).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK,"GremlinAmp:PCM");
   boolean continuous=track==null;
   try(PcmSource decoder=factory.open()){
+   AmbientArrangement arrangement=decoder instanceof AmbientArrangement prepared?prepared:null;
    if(!continuous)wake.acquire(6*60*60*1000L);
    int rate=decoder.sampleRate();
    int size=Math.max(16384,AudioTrack.getMinBufferSize(rate,AudioFormat.CHANNEL_OUT_STEREO,AudioFormat.ENCODING_PCM_16BIT));
@@ -469,28 +706,33 @@ public class PlaybackService extends Service {
      .setBufferSizeInBytes(size).setTransferMode(AudioTrack.MODE_STREAM).build();
    if(token!=generation)return;
    long actualFrames=decoder.duration();
-   long play=continuous?0:Math.min(Integer.MAX_VALUE,Math.max(0,track.optLong("play_ms",120000)));
-   long fade=continuous?0:Math.min(Integer.MAX_VALUE-play,Math.max(0,track.optLong("fade_ms",0)));
-   long limit=continuous?Long.MAX_VALUE:actualFrames>=0?actualFrames:(play+fade)*rate/1000;
-   long endMs=continuous?0:(limit*1000+rate-1)/rate;
+   long play=continuous?0:PlaybackRules.playMs(track);
+   long fade=continuous?0:PlaybackRules.fadeMs(track,play);
+   long limit=continuous?Long.MAX_VALUE:actualFrames>=0?actualFrames:
+    library.playbackEnd(track,library.measuredEnd(track))*rate/1000;
+   long endMs=continuous?0:PlaybackRules.frameDuration(limit,rate);
    main.post(()->{
     if(token!=generation||destroyed)return;
     duration=endMs;
-    durationKnown=!continuous&&(actualFrames>=0||!decoder.reportsDuration()&&track.optBoolean("duration_known")&&endMs>0);
+    activeArrangement=arrangement==null?null:arrangement.style;
+    durationKnown=!continuous&&(actualFrames>=0||endMs>0);
     ready(token);
    });
-   if(actualFrames>=0)library.recordDecoderDuration(track,endMs);
-   double gain=continuous?1:MusicContract.gain(track);
+   if(actualFrames>=0&&arrangement==null)library.recordDecoderDuration(track,endMs);
+   double gain=continuous||arrangement!=null?1:MusicContract.gain(track);
    short[] pcm=new short[4096];
    long frames=0,segmentStart=0,headBase=0,lastHead=0;
+   boolean sought=false;
    while(token==generation&&!Thread.currentThread().isInterrupted()){
     SeekRequest request=seekRequest.get();
     if(request!=null&&request.generation()==token&&seekRequest.compareAndSet(request,null)){
+     sought=true;
      output.pause();
      output.flush();
      if(library.streaming||handheldSpectrum)audioEnergy.reset();
-     frames=decoder.seek(Math.min(limit,request.target()*rate/1000));
+     frames=decoder.seek(Math.min(limit,seekTarget(request,endMs)*rate/1000));
      segmentStart=frames;
+     headBase=0;lastHead=0;
      long target=frames*1000/rate;
      main.post(()->{if(token==generation){elapsed=target;announce();}});
     }
@@ -516,7 +758,7 @@ public class PlaybackService extends Service {
     int rendered=decoder.render(pcm,requested);
     if(rendered==0&&!decoder.ended())throw new IOException("Декодер остановился без сигнала конца");
     int samples=2*rendered;
-    if(!continuous)for(int i=0;i<samples;i+=2){
+    if(!continuous&&arrangement==null)for(int i=0;i<samples;i+=2){
      long time=(frames+i/2)*1000/rate;
      double scale=gain*(actualFrames>=0||time<play?1:fade==0?0:Math.max(0,1.0-(double)(time-play)/fade));
      pcm[i]=scale(pcm[i],scale);pcm[i+1]=scale(pcm[i+1],scale);
@@ -530,7 +772,16 @@ public class PlaybackService extends Service {
     if((library.streaming||handheldSpectrum)&&token==generation&&state==PLAYING)audioEnergy.pcm(pcm,samples,rate);
     frames+=rendered;
    }
-   if(token==generation)main.post(()->completed(token));
+   if(token==generation&&!Thread.currentThread().isInterrupted()){
+    long naturalEnd=!continuous&&arrangement==null&&actualFrames<0
+      &&!sought&&frames>0&&frames<limit&&decoder.ended()?PlaybackRules.frameDuration(frames,rate):-1;
+    if(naturalEnd>0)library.recordDecoderDuration(track,naturalEnd,true);
+    main.post(()->{
+     if(token!=generation||destroyed)return;
+     if(naturalEnd>0){duration=naturalEnd;durationKnown=true;elapsed=naturalEnd;publishMetadata();}
+     completed(token);
+    });
+   }
   }finally{if(output!=null)output.release();if(wake.isHeld())wake.release();}
  }
  static short scale(short sample,double gain){return (short)Math.max(Short.MIN_VALUE,Math.min(Short.MAX_VALUE,Math.round(sample*gain)));}
@@ -548,6 +799,8 @@ public class PlaybackService extends Service {
   announce();
  }
  public void resume(){
+  if(!state.wantsPlayback()&&sleepDeadline!=0&&sleepRemaining()==0)checkSleepTimer();
+  sleepExpired=false;
   if(state.wantsPlayback())return;
   if(station!=null){playRadio(station);return;}
   if(spaceMode!=null){
@@ -640,12 +893,18 @@ public class PlaybackService extends Service {
  public void previous(){if(queue.isEmpty())return;rejectedTracks.clear();int index=history.current();if(index<0)index=position;else if(index==position){int previous=history.previous();if(previous>=0)index=previous;}start(index);}
  public long currentPosition(){if(media!=null&&mediaReady)try{return PlaybackRules.position(media.getCurrentPosition(),duration,durationKnown);}catch(IllegalStateException ignored){}return PlaybackRules.position(elapsed,duration,durationKnown);}
  public boolean seekAvailable(){return station==null&&spaceMode==null&&state.canSeek()&&duration>0&&!completionPending;}
- public void seek(long target){if(!seekAvailable())return;target=Math.max(0,Math.min(target,duration));if(media!=null&&mediaReady){try{media.seekTo((int)target);}catch(IllegalStateException ignored){}}else seekRequest.set(new SeekRequest(generation,target));}
+ private static long seekTarget(SeekRequest request,long newDuration){
+  long target=request.target();
+  if(request.reference()>0&&newDuration>0)
+   target=Math.min(newDuration-1,Math.round(target*(double)newDuration/request.reference()));
+  return Math.max(0,Math.min(target,newDuration));
+ }
+ public void seek(long target){if(!seekAvailable())return;target=Math.max(0,Math.min(target,duration));if(media!=null&&mediaReady){try{media.seekTo((int)target);}catch(IllegalStateException ignored){}}else seekRequest.set(new SeekRequest(generation,target,0));}
  void seekRelative(long delta){
   if(!seekAvailable())return;
   SeekRequest pending=seekRequest.get();
   long current=pending!=null&&pending.generation()==generation?pending.target():currentPosition();
   seek(current+delta);
  }
- public void onDestroy(){destroyed=true;if(spaceSensors!=null)spaceSensors.setActive(false);if(orbitIo!=null)orbitIo.shutdownNow();generation++;clearStreamCache();if(preloadIo!=null)preloadIo.shutdownNow();if(work!=null)work.cancel(true);executor.shutdownNow();continuationIo.shutdownNow();if(artworkWork!=null)artworkWork.cancel(true);artworkIo.shutdownNow();library.cancelTransfers();releaseMedia();releaseRadio();main.removeCallbacksAndMessages(null);am.abandonAudioFocusRequest(focus);unregisterReceiver(noisy);session.release();instance=null;super.onDestroy();}
+ public void onDestroy(){destroyed=true;releaseSleepWake();if(spaceSensors!=null)spaceSensors.setActive(false);if(orbitIo!=null)orbitIo.shutdownNow();if(weatherIo!=null)weatherIo.shutdownNow();generation++;clearStreamCache();if(preloadIo!=null)preloadIo.shutdownNow();if(work!=null)work.cancel(true);executor.shutdownNow();continuationIo.shutdownNow();if(artworkWork!=null)artworkWork.cancel(true);artworkIo.shutdownNow();library.cancelTransfers();releaseMedia();releaseRadio();main.removeCallbacksAndMessages(null);am.abandonAudioFocusRequest(focus);unregisterReceiver(noisy);session.release();instance=null;super.onDestroy();}
 }

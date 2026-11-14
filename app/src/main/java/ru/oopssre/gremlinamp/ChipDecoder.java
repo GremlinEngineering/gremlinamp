@@ -93,8 +93,7 @@ final class ChipDecoder implements PcmSource {
     public boolean reportsDuration() { return engine.equals("vgm") || engine.equals("openmpt") || engine.equals("xa") || machine != null || isWav(engine); }
 
     static int preroll(JSONObject track) {
-        JSONObject playback = track.optJSONObject("playback");
-        return track.optInt("native_preroll_vgm_samples", playback == null ? 0 : playback.optInt("native_preroll_vgm_samples"));
+        return Library.vgmPreroll(track);
     }
 
     public int sampleRate() {

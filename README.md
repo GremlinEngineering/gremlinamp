@@ -87,7 +87,7 @@ For repeatable update signing, set `GREMLINAMP_KEYSTORE` to your private keystor
 
 The SDK build script is the supported command-line build method. A Gradle project is included; a Gradle wrapper is not provided.
 
-Run the state-model tests with `bash tools/test-state.sh`.
+Set `GREMLINAMP_JSON_JAR` to an org.json JVM JAR, then run `bash tools/test-state.sh`.
 
 ## Licenses and rights
 
@@ -127,5 +127,7 @@ Game and series data come from `/music/game-index.json`. The full-library downlo
 ## Radio and queues
 
 The library menu opens Radio in the same player as game music. Playback follows the network setting and can continue in the background. In the release build, a code in Settings → Personal mode unlocks the personal stations. When building from source, presets come from the local `app/src/main/assets/personal-radio.json`. Each entry has a `title` and an HTTPS `url`. Git ignores this file.
+
+For a local build with personal radio, provide both `app/src/main/assets/personal-radio.json` and `app/src/main/assets/personal-radio.sha256` (one lowercase SHA-256 digest of the trimmed code).
 
 While a series is playing, opening a different series replaces the queue once its tracks are ready. The series header can also start playback directly. The **Across the library** continuation mode includes standalone games and respects filters and the downloaded-only setting. The analysis index refreshes separately from the game catalog and has its own status in queue settings.

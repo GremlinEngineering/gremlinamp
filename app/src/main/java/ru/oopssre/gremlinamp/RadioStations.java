@@ -13,7 +13,6 @@ import java.util.List;
 final class RadioStations {
     static final String PERSONAL_ASSET = "personal-radio.json";
     static final String PERSONAL_MODE = "personal_radio";
-    private static final String TV_CODE_HASH = "4dea5c7cb70f50322ec9d734aa4aa078be9227c05251e18991c596f387552370";
 
     record Station(String title, String url, boolean personal, String credit) {
         Station(String title, String url, boolean personal) { this(title, url, personal, ""); }
@@ -52,8 +51,21 @@ final class RadioStations {
         return result;
     }
 
-    static boolean acceptsCode(String code) {
-        try { return TV_CODE_HASH.equals(Library.hash(code.trim().getBytes(StandardCharsets.UTF_8))); }
-        catch (Exception e) { return false; }
+    static boolean acceptsCode(android.content.Context context, String code) {
+        try (InputStream input = context.getAssets().open("personal-radio.sha256")) {
+            byte[] bytes = new byte[67];
+            int length = 0;
+            while (length < bytes.length) {
+                int count = input.read(bytes, length, bytes.length - length);
+                if (count < 0) break;
+                length += count;
+            }
+            if (length == bytes.length) return false;
+            String expected = new String(bytes, 0, length, StandardCharsets.US_ASCII).trim();
+            return expected.matches("[a-f0-9]{64}")
+                    && expected.equals(Library.hash(code.trim().getBytes(StandardCharsets.UTF_8)));
+        } catch (Exception e) {
+            return false;
+        }
     }
 }

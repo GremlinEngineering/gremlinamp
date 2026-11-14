@@ -1,0 +1,19 @@
+Звук трекеров · источники данных
+
+Voyager 1 PWS: NASA/JPL-Caltech и Университет Айовы, CC BY 4.0.
+https://space.physics.uiowa.edu/plasma-wave/voyager/v1pws_interstellar_epo.html
+https://creativecommons.org/licenses/by/4.0/
+Фрагмент 0,5–12,0 с преобразован в моно PCM 16 кГц и смешивается с трекером.
+
+Kepler KIC 12268220 и молнии Юпитера, Voyager: NASA Historical Sounds.
+https://www.nasa.gov/historical-sounds/
+
+Cassini RPWS, Сатурн, 26 апреля 2017: NASA и Университет Айовы, CC BY 3.0.
+https://space.physics.uiowa.edu/space-audio/cassini/rev271rpx/
+https://creativecommons.org/licenses/by/3.0/
+Для генератора измерения преобразованы в спектральные признаки.
+
+Орбиты: эфемериды Луны JPL Horizons, солнечный ветер и измерения GOES NOAA SWPC.
+https://ssd-api.jpl.nasa.gov/doc/horizons.html
+https://www.swpc.noaa.gov/products/solar-wind
+https://www.swpc.noaa.gov/products/goes-x-ray-flux

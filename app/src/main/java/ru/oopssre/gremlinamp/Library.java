@@ -401,29 +401,124 @@ class Library {
  File measurementFile(JSONObject t)throws Exception {return new File(root,"timings/v1-"+t.getJSONObject("asset").getString("sha256")+"-"+t.optInt("subsong")+".json");}
  JSONObject timing(JSONObject t)throws Exception {File f=measurementFile(t);return f.isFile()?new JSONObject(new String(Files.readAllBytes(f.toPath()),java.nio.charset.StandardCharsets.UTF_8)):null;}
  private File decoderDurationFile(JSONObject track)throws Exception{
+  return new File(root,"timings/native-v1-"+decoderDurationKey(track)+".json");
+ }
+ private String decoderDurationKey(JSONObject track)throws Exception{
   String sha=playbackAsset(track).getString("sha256");
   if(!sha.matches("[0-9a-f]{64}"))throw new IOException("Некорректный отпечаток аудио");
-  JSONObject playback=track.optJSONObject("playback");
-  int preroll=track.optInt("native_preroll_vgm_samples",playback==null?0:playback.optInt("native_preroll_vgm_samples"));
-  return new File(root,"timings/native-v1-"+sha+"-"+track.optInt("subsong")+"-"+preroll+".json");
+  return sha+"-"+track.optInt("subsong")+"-"+vgmPreroll(track);
  }
- void recordDecoderDuration(JSONObject track,long duration){
-  if(streaming)return;
+ private record StreamDuration(long millis,boolean observedEnd){}
+ private static final Map<String,StreamDuration> streamDurations=new LinkedHashMap<>(){
+  @Override protected boolean removeEldestEntry(Map.Entry<String,StreamDuration> eldest){return size()>4096;}
+ };
+ static final java.util.concurrent.atomic.AtomicLong STREAM_TIMING_REVISION=new java.util.concurrent.atomic.AtomicLong();
+ private StreamDuration streamDuration(JSONObject track){
+  try{synchronized(streamDurations){return streamDurations.get(decoderDurationKey(track));}}
+  catch(Exception ignored){return null;}
+ }
+ void recordDecoderDuration(JSONObject track,long duration){recordDecoderDuration(track,duration,false);}
+ void recordDecoderDuration(JSONObject track,long duration,boolean observedEnd){
+  if(duration<=0)return;
   try{
+   if(streaming){
+    String key=decoderDurationKey(track);
+    StreamDuration value=new StreamDuration(duration,observedEnd);
+    synchronized(streamDurations){
+     if(!value.equals(streamDurations.put(key,value)))STREAM_TIMING_REVISION.incrementAndGet();
+    }
+    return;
+   }
    File file=decoderDurationFile(track);
    if(!file.isFile()){
-    atomic(file,new JSONObject().put("duration_ms",duration).toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+    atomic(file,new JSONObject().put("duration_ms",duration).put("observed_end",observedEnd).toString()
+      .getBytes(java.nio.charset.StandardCharsets.UTF_8));
     revision.incrementAndGet();
    }
   }catch(Exception ignored){}
  }
  private long decodedDuration(JSONObject track){
-  if(streaming)return -1;
-  try{File file=decoderDurationFile(track);return file.isFile()?readObject(file).optLong("duration_ms",-1):-1;}
+  JSONObject result=decoderDuration(track);
+  return result==null?-1:result.optLong("duration_ms",-1);
+ }
+ private JSONObject decoderDuration(JSONObject track){
+  if(streaming)return null;
+  try{File file=decoderDurationFile(track);return file.isFile()?readObject(file):null;}
+  catch(Exception ignored){return null;}
+ }
+ long knownDuration(JSONObject t){
+  if(streaming)return displayDuration(t);
+  long decoded=decodedDuration(t);if(decoded>=0)return decoded;
+  if(!streaming){
+   JSONArray frames=fileTiming(t);
+   if(frames!=null)return fileDuration(t,frames);
+  }
+  try{JSONObject measured=timing(t);if(measured!=null&&measured.optLong("ended_ms",-1)>=0)return measured.optLong("sound_ms",0);return t.optBoolean("duration_known")?t.optLong("play_ms",0):-1;}catch(Exception e){return -1;}
+ }
+ long displayDuration(JSONObject t){
+  if(streaming){
+   StreamDuration decoded=streamDuration(t);
+   return decoded!=null?decoded.millis():playbackEnd(t,-1);
+  }
+  long decoded=decodedDuration(t);
+  if(decoded>0)return decoded;
+  long measured=measuredEnd(t);
+  return playbackEnd(t,measured);
+ }
+ long playbackEnd(JSONObject track,long measured){
+  JSONArray frames=fileTiming(track);
+  long limit=frames!=null?fileDuration(track,frames):PlaybackRules.playbackMs(track);
+  return measured>0?Math.min(limit,measured):limit;
+ }
+ long measuredEnd(JSONObject t){
+  if(streaming){
+   StreamDuration value=streamDuration(t);
+   return value!=null&&value.observedEnd()?value.millis():-1;
+  }
+  try{
+   JSONObject cached=decoderDuration(t);
+   if(cached!=null&&cached.optBoolean("observed_end"))return cached.optLong("duration_ms",-1);
+   JSONObject measured=timing(t);return measured==null?-1:measured.optLong("ended_ms",-1);
+  }
   catch(Exception ignored){return -1;}
  }
- long knownDuration(JSONObject t){long decoded=decodedDuration(t);if(decoded>=0)return decoded;try{JSONObject measured=timing(t);if(measured!=null&&measured.optLong("ended_ms",-1)>=0)return measured.optLong("sound_ms",0);return t.optBoolean("duration_known")?t.optLong("play_ms",0):-1;}catch(Exception e){return -1;}}
- long displayDuration(JSONObject t){long decoded=decodedDuration(t);if(decoded>=0)return decoded;String engine=MusicContract.decoder(t);if(engine.equals("vgm")||engine.equals("wav")||engine.equals("fallback"))return -1;long known=knownDuration(t);if(known<0)return -1;try{JSONObject measured=timing(t);if(measured!=null&&measured.optLong("ended_ms",-1)>=0)return known;}catch(Exception ignored){}return PlaybackRules.total(known,t.optLong("fade_ms",0));}
+ private long fileDuration(JSONObject track,JSONArray timing){
+  long preroll=MusicContract.decoder(track).equals("vgm")?vgmPreroll(track):0;
+  long samples=timing.optLong(0)-preroll;
+  return timing.optLong(2)==0&&samples>0?PlaybackRules.frameDuration(samples,timing.optInt(1)):PlaybackRules.playbackMs(track);
+ }
+ boolean looping(JSONObject track){JSONArray frames=fileTiming(track);return frames!=null&&frames.optLong(2)>0;}
+ static int vgmPreroll(JSONObject track){
+  JSONObject playback=track.optJSONObject("playback");
+  return Math.max(0,track.optInt("native_preroll_vgm_samples",playback==null?0:playback.optInt("native_preroll_vgm_samples")));
+ }
+ private JSONArray fileTiming(JSONObject track){
+  try{
+   JSONObject asset=playbackAsset(track);
+   String format=asset.optString("format");
+   boolean vgm=format.equals("vgm")||format.equals("vgz");
+   if(!vgm&&!format.equals("wav"))return null;
+   JSONArray timing=asset.optJSONArray("file_timing");
+   if(timing==null)timing=bundledTimings().optJSONArray(asset.optString("sha256"));
+   if(timing==null||timing.length()!=3)return null;
+   long samples=timing.optLong(0,-1),loop=timing.optLong(2,-1);
+   int rate=timing.optInt(1);
+   return samples>0&&samples<0xffffffffL&&rate>=8000&&rate<=192000&&loop>=0&&loop<=samples
+    &&(vgm?rate==44100:loop==0)?timing:null;
+  }catch(Exception ignored){return null;}
+ }
+ private static JSONObject bundledTimings;
+ private JSONObject bundledTimings(){
+  synchronized(Library.class){
+   if(bundledTimings!=null)return bundledTimings;
+   try(InputStream in=context.getAssets().open("music-timings.json");ByteArrayOutputStream bytes=new ByteArrayOutputStream()){
+    byte[] block=new byte[16384];int count;
+    while((count=in.read(block))!=-1)bytes.write(block,0,count);
+    bundledTimings=new JSONObject(bytes.toString("UTF-8"));
+   }catch(Exception ignored){bundledTimings=new JSONObject();}
+   return bundledTimings;
+  }
+ }
  static final Object MEASURE_LOCK=new Object();
  void measureTrack(JSONObject t)throws Exception {synchronized(MEASURE_LOCK){measureLocked(t);}}
  private void measureLocked(JSONObject t)throws Exception {

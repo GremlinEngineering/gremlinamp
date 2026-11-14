@@ -1,0 +1,15 @@
+{
+  "schema": 1,
+  "theme_id": "sunken-teahouse",
+  "device": "phone_1440x3120",
+  "at": "2026-11-14T10:00:53+00:00",
+  "inputs": {
+    "at": "2026-11-14T10:00:53+00:00",
+    "weather": {
+      "weather_code": 3,
+      "wind_speed_10m": 3.27,
+      "cloud_cover": 100,
+      "precipitation": 0.0
+    }
+  }
+}

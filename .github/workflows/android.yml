@@ -26,12 +26,11 @@ jobs:
         run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0' 'ndk;27.0.12077973' 'cmake;3.22.1'
       - name: Install audio preparation tools
         run: sudo apt-get update && sudo apt-get install -y ffmpeg
-      - name: Check playback state rules
-        run: bash tools/test-state.sh
       - name: Check offline library and playback controls
         run: |
           curl --fail --location https://repo.maven.apache.org/maven2/org/json/json/20240303/json-20240303.jar -o "$RUNNER_TEMP/org-json.jar"
           export GREMLINAMP_JSON_JAR="$RUNNER_TEMP/org-json.jar"
+          bash tools/test-state.sh
           bash tools/test-library.sh
           bash tools/test-similarity.sh
           bash tools/test-playback.sh
