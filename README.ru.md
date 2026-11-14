@@ -75,7 +75,7 @@ bash tools/build-sdk.sh
 
 Для сборки из командной строки используется SDK-скрипт. Gradle-проект также включён; Gradle Wrapper отсутствует.
 
-Проверки модели состояния: `bash tools/test-state.sh`.
+Для проверки модели состояния укажите JAR org.json в `GREMLINAMP_JSON_JAR` и запустите `bash tools/test-state.sh`.
 
 ## Текущие ограничения
 

@@ -84,7 +84,7 @@ The phone and TV builds compile the C and C++ decoder sources in [decoder-source
 
 The SDK build script is the supported command-line build method. A Gradle project is included; a Gradle wrapper is not provided.
 
-Run the state-model tests with `bash tools/test-state.sh`.
+Set `GREMLINAMP_JSON_JAR` to an org.json JVM JAR, then run `bash tools/test-state.sh`.
 
 ## Licenses and rights
 

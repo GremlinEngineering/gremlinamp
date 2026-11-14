@@ -10,18 +10,37 @@ final class SpaceTracker {
         STARS("Звёзды", "Kepler · колебания яркости KIC 12268220", "stars", 50, 63, 1),
         SOLAR("Солнечная система", "Voyager · Юпитер / Cassini · Сатурн", "solar", 43, 74, 2),
         CITY("Москва", "Городской трекер · по мотивам Sonic City", "", 48, 72, 3),
-        ORBITS("Орбиты", "Луна · солнечный ветер · вспышки", "", 41, 48, 4);
+        ORBITS("Орбиты", "Луна · солнечный ветер · вспышки", "", 41, 48, 4),
+        TEA("Чайная", "Тихий эмбиент · время суток", EarthTracker.Mode.TEA, 54),
+        WORKSHOP("Мастерская", "Механический ритм · смещающиеся акценты", EarthTracker.Mode.WORKSHOP, 104),
+        WEATHER("Погода", "Погодный эмбиент · Затонувшая чайная", EarthTracker.Mode.WEATHER, 62),
+        URBAN("Город", "Чиптюн · местное время и часы пик", EarthTracker.Mode.CITY, 70);
 
         final String title, source, asset;
         final int key, restTempo, arrangement;
+        final EarthTracker.Mode earth;
+
         Mode(String title, String source, String asset, int key, int restTempo, int arrangement) {
+            this(title, source, asset, key, restTempo, arrangement, null);
+        }
+
+        Mode(String title, String source, EarthTracker.Mode earth, int restTempo) {
+            this(title, source, "", 0, restTempo, 0, earth);
+        }
+
+        private Mode(String title, String source, String asset, int key, int restTempo, int arrangement,
+                     EarthTracker.Mode earth) {
             this.title = title;
             this.source = source;
             this.asset = asset;
             this.key = key;
             this.restTempo = restTempo;
             this.arrangement = arrangement;
+            this.earth = earth;
         }
+
+        boolean phoneOnly() { return earth != null || this == CITY; }
+        boolean usesMotion() { return earth == null && this != ORBITS; }
     }
 
     record Motion(float cadence, float movement, float tilt) {
@@ -61,6 +80,7 @@ final class SpaceTracker {
     private double streetFrame;
 
     SpaceTracker(Mode mode, byte[] source, long seed, short[] plasmaSamples) {
+        if (mode.earth != null) throw new IllegalArgumentException("Mode requires the Earth tracker");
         if (!mode.asset.isEmpty() && (source.length < 24 || source.length % 3 != 0)) throw new IllegalArgumentException("Invalid plasma feature data");
         this.mode = mode;
         this.source = source;

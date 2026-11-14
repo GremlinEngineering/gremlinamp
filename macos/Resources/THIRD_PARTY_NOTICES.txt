@@ -1,0 +1,37 @@
+GremlinAmp для macOS 0.1.2
+Авторский код приложения: © 2026 Дмитрий Малыхин, MIT. Полный текст — MIT.txt.
+
+Game Music Emu 0.6.5
+https://github.com/libgme/game-music-emu
+Заимствован из GremlinAmp Android 0.1.8, дерево исходников Android:
+https://github.com/GremlinEngineering/gremlinamp/tree/64eb2e8891b121bf3b8772911b22007fd2923e14/app/src/main/cpp/game-music-emu
+Преимущественно LGPL-2.1-or-later; авторство и условия отдельных компонентов
+сохранены в Vendor/game-music-emu. Полный текст LGPL — LGPL-2.1.txt.
+Используется Nuked YM2612 (LGPL), вариант MAME (GPL) в сборку не включается.
+Библиотека и мост собраны в отдельную libGremlinAudio.dylib.
+Полные исходники и скрипт пересборки включены в комплект.
+Для замены библиотеки пересоберите её тем же скриптом и подпишите приложение
+локальной подписью codesign --force --sign -. Проверка подписи компонента
+и привязка к закрытому ключу не используются.
+
+Локальные изменения Game Music Emu: адаптер YM2413 в gme/Ym2413_Emu.cpp
+и gme/Ym2413_Emu.h заменён реализацией из GremlinAmp Android 0.2.4.
+Он использует включённый emu2413 (Mitsutaka Okazaki и участники проекта, MIT).
+Текст MIT этого компонента — EMU2413_LICENSE.txt и gme/ext/LICENSE.
+CMake также включает ядро emu2413 для сборок только с VGM.
+Остальные компоненты Game Music Emu сохраняют свои исходные условия.
+
+stb_vorbis 1.22, Sean Barrett и участники проекта stb
+https://github.com/nothings/stb/blob/master/stb_vorbis.c
+Используется альтернатива MIT из двойной лицензии MIT / public domain.
+Полный текст и авторство сохранены в конце Vendor/stb_vorbis.c.
+
+SwiftUI, AppKit, AVFoundation, MediaPlayer и CryptoKit — системные фреймворки Apple.
+
+Название, значок кассетного плеера и каталог взяты из проекта GremlinAmp.
+Музыка, постеры и игровые названия сохраняют права соответствующих авторов
+и правообладателей. Лицензия MIT на код не распространяется на эти материалы.
+https://games.oopssre.ru/license.html
+https://games.oopssre.ru/sources.html
+
+Источники данных генераторов и условия использования сигнала Voyager перечислены в Trackers/SOURCES.txt.

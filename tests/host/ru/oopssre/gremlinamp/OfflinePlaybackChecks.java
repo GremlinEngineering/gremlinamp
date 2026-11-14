@@ -43,6 +43,29 @@ public final class OfflinePlaybackChecks {
  public static void main(String[] args)throws Exception {
   Context context=new Context(Files.createTempDirectory("gremlin-offline-test").toFile());Library l=new Library(context);
   JSONObject game=game(1),asset=asset(new byte[]{1,2,3}),track=track(asset),manifest=new JSONObject().put("tracks",new JSONArray().put(track));
+  JSONObject vgm=asset(new byte[]{6,7,8}).put("format","vgm").put("file_timing",new JSONArray().put(1_411_200).put(44100).put(0));
+  JSONObject finite=track(vgm).put("play_ms",120000).put("fade_ms",5000);
+  check(l.displayDuration(finite)==32000&&l.knownDuration(finite)==32000,"VGM length comes from samples before playback");
+  finite.put("native_preroll_vgm_samples",44100);
+  check(l.displayDuration(finite)==31000,"VGM header length excludes native preroll");
+  check(!l.looping(finite),"VGM with a natural end is not marked as looping");
+  JSONObject loop=track(new JSONObject(vgm.toString()).put("file_timing",new JSONArray().put(1_411_200).put(44100).put(1_200_000)))
+   .put("play_ms",60000).put("fade_ms",5000);
+  check(l.looping(loop)&&l.displayDuration(loop)==65000,"Loop displays its playback limit including fade");
+  check(l.playbackEnd(loop,-1)==l.displayDuration(loop),"Loop display and playback use the same duration");
+  JSONObject unknown=track(asset(new byte[]{7,8,9})).put("duration_known",false).put("play_ms",120000).put("fade_ms",5000);
+  check(l.displayDuration(unknown)==125000,"Track without native length shows its playback limit");
+  l.recordDecoderDuration(unknown,24500,true);
+  check(l.displayDuration(unknown)==24500&&l.playbackEnd(unknown,l.measuredEnd(unknown))==24500,"Observed end is reused");
+  l.recordDecoderDuration(finite,30900);
+  check(l.displayDuration(finite)==30900,"Decoder duration overrides the VGM header estimate");
+  Library tvTiming=new Library(context,true);
+  check(tvTiming.displayDuration(loop)==65000,"TV displays the same loop playback limit");
+  check(tvTiming.displayDuration(finite)==31000,"TV reads the file duration before playback");
+  tvTiming.recordDecoderDuration(finite,30900);
+  check(new Library(context,true).displayDuration(finite)==30900,"TV activities share measured duration in memory");
+  check(tvTiming.measuredEnd(finite)==-1,"Decoder metadata is not confused with an observed early end");
+  check(tvTiming.displayDuration(unknown)==125000,"TV ignores the offline phone timing cache");
   fixture(l,game,manifest);Library.atomic(l.assetFile(asset),new byte[]{1,2,3});
   check(l.pictureRecord(game,false)!=null,"series-ra artwork found by href");JSONObject noHref=new JSONObject(game.toString());noHref.remove("href");check(l.pictureRecord(noHref,false)!=null,"stable RA identity fallback");
   File full=l.pictureFile(game,false,"assets/full.png?v=1");Library.atomic(full,new byte[]{5});check(l.picture(game,false,true).equals(full),"full poster substitutes for missing thumbnail offline");
@@ -99,6 +122,29 @@ public final class OfflinePlaybackChecks {
   }
   try(Probe p=new Probe(l)){
    l.preferences.edit().putString("after_album","stop").apply();p.queue=List.of(queue.get(0));p.media=new android.media.MediaPlayer();android.media.MediaPlayer audio=p.media;audio.start();p.mediaReady=true;p.state=PLAYING;p.next();check(p.state==ENDED&&!audio.isPlaying()&&p.media==null,"Next on last track releases actual media transport");
+  }
+  try(Probe p=new Probe(l)){
+   p.queue=List.of(queue.get(0));
+   p.state=PAUSED;
+   p.sleepTimer(PlaybackService.SLEEP_STEP_MINUTES);
+   check(p.sleepRemaining()>0&&p.sleepRemaining()<=300_000,"sleep timer starts at five minutes");
+   p.sleepTimer(0);
+   check(p.sleepRemaining()==0&&!p.sleepExpired,"cancel clears the sleep timer");
+   p.sleepTimer(PlaybackService.SLEEP_STEP_MINUTES);
+   var deadline=PlaybackService.class.getDeclaredField("sleepDeadline");
+   deadline.setAccessible(true);
+   deadline.setLong(p,android.os.SystemClock.elapsedRealtime()-1);
+   var expiry=PlaybackService.class.getDeclaredMethod("checkSleepTimer");
+   expiry.setAccessible(true);
+   p.state=PLAYING;
+   p.media=new android.media.MediaPlayer();
+   p.media.start();
+   p.mediaReady=true;
+   expiry.invoke(p);
+   check(p.state==PAUSED&&!p.media.isPlaying()&&p.sleepRemaining()==0&&p.sleepExpired,"sleep expiry pauses media without losing the queue");
+   p.am=new android.media.AudioManager();
+   p.resume();
+   check(p.state==PLAYING&&!p.sleepExpired&&p.sleepRemaining()==0,"manual resume clears the sleep message");
   }
   try(Probe p=new Probe(l)){p.queue=List.of(queue.get(0));p.position=0;p.state=ENDED;p.localOnly=true;p.enqueue(List.of(queue.get(1)),false);check(p.pendingResume==1&&!p.localOnly,"adding online audio to an ended local queue prepares the new track");p.resume();check(p.started==1,"Play after enqueue starts new audio rather than replaying the last completed track");}
   JSONObject mixed=new JSONObject().put("tracks",new JSONArray().put(track(asset(new byte[]{7}))).put(track));

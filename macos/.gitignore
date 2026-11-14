@@ -1,0 +1,5 @@
+build/
+.DS_Store
+*.dmg
+Resources/personal-radio.json
+Resources/personal-radio.sha256
