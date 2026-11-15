@@ -21,7 +21,7 @@ python3 pwa/tools/preview.py
 
 Локальный адрес для проверки — `http://127.0.0.1:8766/pwa/gremlinamp/`.
 
-Сборка создаёт пакет в `pwa/dist/gremlinamp/`.
+Готовые файлы сборки находятся в `pwa/dist/gremlinamp/`.
 
 ## Лицензия
 
