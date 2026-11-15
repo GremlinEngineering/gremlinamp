@@ -1,0 +1,7 @@
+dist/
+__pycache__/
+personal-radio.json
+personal-radio.sha256
+personal-radio.sealed.json
+.env
+.env.*

@@ -1,0 +1,8 @@
+[
+  {"title":"RolandRadio · Amstrad CPC","url":"https://streaming.rolandradio.net/rolandradio","type":"audio/mpeg"},
+  {"title":"Rainwave · чиптюн","url":"https://relay.rainwave.cc/chiptune.mp3","type":"audio/mpeg"},
+  {"title":"9128 Live","url":"https://streams.radio.co/s0aa1e6f4a/listen","type":"audio/mpeg"},
+  {"title":"Ambient Sleeping Pill","url":"https://radio.stereoscenic.com/asp-s","type":"audio/mpeg"},
+  {"title":"Kohina · игры и демосцена","url":"https://kohina.brona.dk/icecast/stream.ogg","type":"audio/ogg"},
+  {"title":"MUGEN Radio","url":"https://mugenradio.com/hls/live.m3u8","type":"application/vnd.apple.mpegurl","credit":"MUGEN Radio / mugenradio.com · ИИ · CC BY-NC 4.0"}
+]
